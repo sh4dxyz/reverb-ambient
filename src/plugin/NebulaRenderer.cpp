@@ -14,6 +14,11 @@ void NebulaRenderer::addRipple (float x, float y)
 void NebulaRenderer::newOpenGLContextCreated()
 {
     shaderReady.store (false);
+    // Old or generic drivers (e.g. GDI OpenGL 1.1 on a VM) have no shader support: keep the
+    // plain background instead of calling missing GL entry points.
+    if (! context.areShadersAvailable() || juce::OpenGLShaderProgram::getLanguageVersion() < 1.2)
+        return;
+
     auto program = std::make_unique<juce::OpenGLShaderProgram> (context);
     const bool ok = program->addVertexShader (juce::OpenGLHelpers::translateVertexShaderToV3 (NebulaShaders::vertex))
                  && program->addFragmentShader (juce::OpenGLHelpers::translateFragmentShaderToV3 (NebulaShaders::fragment))
