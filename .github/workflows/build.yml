@@ -37,7 +37,7 @@ jobs:
           - name: Windows
             os: windows-latest
           - name: macOS
-            os: macos-14
+            os: macos-latest
     runs-on: ${{ matrix.os }}
     env:
       ARTEFACTS: build/HorizonNoir_artefacts/Release
@@ -46,7 +46,7 @@ jobs:
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+        run: cmake -B build -A x64
 
       - name: Configure (macOS universal)
         if: runner.os == 'macOS'
