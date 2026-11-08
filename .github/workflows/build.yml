@@ -64,13 +64,15 @@ jobs:
       # ------------------------------------------------------------------ Windows
       - name: pluginval (VST3, Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
+        # bash waits for the GUI-subsystem pluginval.exe (PowerShell does not).
+        shell: bash
         run: |
-          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
-          Expand-Archive pluginval.zip -DestinationPath pluginval
-          $vst3 = "${{ env.ARTEFACTS }}/VST3/Horizon Noir.vst3"
-          ./pluginval/pluginval.exe --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate "$vst3"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          7z x -opluginval pluginval.zip > /dev/null
+          set -o pipefail
+          ./pluginval/pluginval.exe --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs \
+            --validate "$ARTEFACTS/VST3/Horizon Noir.vst3" 2>&1 | tee pluginval.txt \
+            || { tail -n 40 pluginval.txt | sed 's/^/::error::/'; exit 1; }
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -103,8 +105,11 @@ jobs:
           curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
           unzip -q pluginval.zip
           PV=pluginval.app/Contents/MacOS/pluginval
-          $PV --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate "$ARTEFACTS/VST3/Horizon Noir.vst3"
-          $PV --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate ~/Library/Audio/Plug-Ins/Components/"Horizon Noir.component"
+          set -o pipefail
+          for target in "$ARTEFACTS/VST3/Horizon Noir.vst3" ~/Library/Audio/Plug-Ins/Components/"Horizon Noir.component"; do
+            $PV --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate "$target" 2>&1 | tee pluginval.txt \
+              || { tail -n 40 pluginval.txt | sed 's/^/::error::/'; exit 1; }
+          done
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
