@@ -89,7 +89,9 @@ void HorizonLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
     g.drawLine ({ c.getPointOnCircumference (bodyR * 0.35f, angle), c.getPointOnCircumference (bodyR * 0.88f, angle) }, 2.0f);
 
     // Label, replaced by the value while the knob is touched.
+    // Names are given in capitals by the editor (toUpperCase() misses accented letters).
     g.setFont (Theme::labelFont (12.5f));
     g.setColour (active ? Theme::ink : Theme::inkDim);
-    g.drawText (active ? slider.getTextFromValue (slider.getValue()) : slider.getName().toUpperCase(), label, Justification::centred);
+    g.drawFittedText (active ? slider.getTextFromValue (slider.getValue()) : slider.getName(), label.toNearestInt(),
+                      Justification::centred, 1, 0.8f);
 }

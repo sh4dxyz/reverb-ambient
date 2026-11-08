@@ -24,13 +24,13 @@ HorizonNoirEditor::HorizonNoirEditor (HorizonNoirProcessor& p)
     setOpaque (true);
 
     addAndMakeVisible (content);
-    setupKnob (size, ParamIDs::size, "Taille", utf8 ("Taille de l'espace, de la crypte \xc3\xa0 la cath\xc3\xa9" "drale. La queue en cours garde sa taille, les nouveaux sons prennent la nouvelle."));
-    setupKnob (decay, ParamIDs::decay, utf8 ("Dur\xc3\xa9" "e"), utf8 ("Dur\xc3\xa9" "e de la queue, de 1 \xc3\xa0 60 secondes."));
-    setupKnob (tone, ParamIDs::tone, "Sombre / Clair", utf8 ("Vitesse \xc3\xa0 laquelle les aigus s'\xc3\xa9teignent dans la queue."));
-    setupKnob (shimmer, ParamIDs::shimmer, "Shimmer", utf8 ("Halo transpos\xc3\xa9 r\xc3\xa9inject\xc3\xa9 dans la reverb : octave, quinte ou quarte, vers le haut ou le bas."));
+    setupKnob (size, ParamIDs::size, "TAILLE", utf8 ("Taille de l'espace, de la crypte \xc3\xa0 la cath\xc3\xa9" "drale. La queue en cours garde sa taille, les nouveaux sons prennent la nouvelle."));
+    setupKnob (decay, ParamIDs::decay, utf8 ("DUR\xc3\x89" "E"), utf8 ("Dur\xc3\xa9" "e de la queue, de 1 \xc3\xa0 60 secondes."));
+    setupKnob (tone, ParamIDs::tone, "SOMBRE/CLAIR", utf8 ("Vitesse \xc3\xa0 laquelle les aigus s'\xc3\xa9teignent dans la queue."));
+    setupKnob (shimmer, ParamIDs::shimmer, "SHIMMER", utf8 ("Halo transpos\xc3\xa9 r\xc3\xa9inject\xc3\xa9 dans la reverb : octave, quinte ou quarte, vers le haut ou le bas."));
     shimmer.slider.getProperties().set ("detents", 7);
-    setupKnob (ducking, ParamIDs::ducking, "Ducking", utf8 ("Baisse la reverb pendant que tu joues, elle remonte dans les silences."));
-    setupKnob (mix, ParamIDs::mix, "Dry / Wet", utf8 ("M\xc3\xa9lange signal direct / reverb."));
+    setupKnob (ducking, ParamIDs::ducking, "DUCKING", utf8 ("Baisse la reverb pendant que tu joues, elle remonte dans les silences."));
+    setupKnob (mix, ParamIDs::mix, "DRY/WET", utf8 ("M\xc3\xa9lange signal direct / reverb."));
 
     infiniteButton.setTooltip (utf8 ("INFINI : fige la nappe telle quelle, ind\xc3\xa9" "finiment. Les nouveaux sons passent en direct sans s'y ajouter."));
     content.addAndMakeVisible (infiniteButton);
@@ -111,7 +111,7 @@ void HorizonNoirEditor::resized()
         x += knobW + gap;
     }
 
-    dragZone.setBounds (designWidth - 20 - 196, 18, 196, 34);
+    dragZone.setBounds (designWidth - 20 - 236, 18, 236, 34);
 }
 
 void HorizonNoirEditor::timerCallback()

@@ -61,13 +61,13 @@ void DragExportZone::paint (juce::Graphics& g)
     }
 
     // Duration on the right.
-    auto right = content.removeFromRight (52.0f);
+    auto right = content.removeFromRight (44.0f);
     g.setFont (Theme::labelFont (14.0f));
     g.setColour (hasTake ? Theme::ink : Theme::inkDim);
     g.drawText (hasTake ? String (recorder.currentTakeSeconds(), 1) + " s" : String ("--"), right, Justification::centredRight);
 
     // Small level history between text and duration.
-    auto meter = content.removeFromRight (64.0f).reduced (4.0f, 11.0f);
+    auto meter = content.removeFromRight (56.0f).reduced (4.0f, 11.0f);
     {
         const int n = 32;
         const float w = meter.getWidth() / (float) n;
