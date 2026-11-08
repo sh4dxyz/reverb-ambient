@@ -534,6 +534,101 @@ void testRecorderNewTake()
     check (std::fabs (t.left.front() - 0.1f) < 1e-6f && t.seconds() < 1.5, "a new sound after silence starts a new take");
 }
 
+
+// Turning Taille while a tail rings must not bend its pitch (no Doppler glide).
+void testSizeChangeKeepsPitch()
+{
+    auto p = baseParams();
+    p.decaySeconds = 10.0f;
+    p.size = 0.3f;
+    auto rv = makeReverb (p);
+    std::vector<float> inL (480), inR (480), oL (480), oR (480), wL (480), wR (480);
+    Render out;
+    for (size_t pos = 0; pos < (size_t) (4.0 * fs); pos += 480)
+    {
+        const double t = (double) pos / fs;
+        // Sweep Taille from 0.3 to 1.0 between 1 and 2 s, after the note stopped.
+        p.size = (float) std::clamp (0.3 + 0.7 * (t - 1.0), 0.3, 1.0);
+        rv->setParams (p);
+        for (size_t i = 0; i < 480; ++i)
+            inL[i] = inR[i] = t < 0.8 ? 0.4f * (float) std::sin (2.0 * 3.14159265358979 * 440.0 * (double) (pos + i) / fs) : 0.0f;
+        rv->process (inL.data(), inR.data(), oL.data(), oR.data(), wL.data(), wR.data(), 480);
+        out.l.insert (out.l.end(), wL.begin(), wL.end());
+        out.r.insert (out.r.end(), wR.begin(), wR.end());
+    }
+    // During and after the sweep, energy must stay at 440 Hz, not drift to a detuned pitch.
+    for (double t0 : { 1.2, 1.6, 2.2 })
+    {
+        const double at = toneMagnitude (out, t0, t0 + 0.3, 440.0);
+        double off = 0.0;
+        for (double f : { 400.0, 415.0, 466.0, 480.0 }) off = std::max (off, toneMagnitude (out, t0, t0 + 0.3, f));
+        std::printf ("    Taille sweep, t=%.1f s: 440 Hz is %.1f dB above neighbours\n", t0, db (at) - db (off));
+        check (db (at) - db (off) > 15.0, "turning Taille does not bend the pitch (t=" + std::to_string (t0) + ")");
+    }
+    // New sound now goes to the other tank, tuned for the new size.
+    check (rv->getActiveTank() == 1, "after Taille settles, new sound is routed to the second tank");
+    const int longest = *std::max_element (rv->getPrimeLengths().begin(), rv->getPrimeLengths().end());
+    check (std::abs (longest - (int) (97.0 * 2.2 * 48.0)) < 60, "the new tank uses the new size");
+}
+
+// INFINI must hold what was playing: same spectrum, no pumping, no drift into a chorus.
+void testInfiniteKeepsTimbre()
+{
+    auto p = baseParams();
+    p.decaySeconds = 8.0f;
+    p.tone = 0.5f;
+    auto rv = makeReverb (p);
+    std::vector<float> inL (480), inR (480), oL (480), oR (480), wL (480), wR (480);
+    Render out;
+    for (size_t pos = 0; pos < (size_t) (40.0 * fs); pos += 480)
+    {
+        const double t = (double) pos / fs;
+        p.infinite = t >= 1.5;
+        p.shimmerSemis = 12.0f; // shimmer must not keep transposing a frozen pad
+        rv->setParams (p);
+        for (size_t i = 0; i < 480; ++i)
+        {
+            const double tt = (double) (pos + i) / fs;
+            const float chord = (float) (0.15 * (std::sin (2 * 3.14159265358979 * 220.0 * tt) + std::sin (2 * 3.14159265358979 * 277.18 * tt)
+                                                 + std::sin (2 * 3.14159265358979 * 329.63 * tt)));
+            inL[i] = inR[i] = tt < 1.4 ? chord : 0.0f;
+        }
+        rv->process (inL.data(), inR.data(), oL.data(), oR.data(), wL.data(), wR.data(), 480);
+        out.l.insert (out.l.end(), wL.begin(), wL.end());
+        out.r.insert (out.r.end(), wR.begin(), wR.end());
+    }
+    // Same notes, same balance, 35 s later.
+    for (double f : { 220.0, 277.18, 329.63 })
+    {
+        const double a = db (toneMagnitude (out, 3.0, 5.0, f)), b = db (toneMagnitude (out, 36.0, 38.0, f));
+        std::printf ("    INFINI note %.0f Hz: %.1f dB -> %.1f dB\n", f, a, b);
+        check (std::fabs (b - a) < 3.0, "INFINI keeps the notes that were playing (" + std::to_string ((int) f) + " Hz)");
+    }
+    // The octave above must not grow (shimmer is held off in INFINI).
+    const double oct0 = db (toneMagnitude (out, 3.0, 5.0, 440.0)), oct1 = db (toneMagnitude (out, 36.0, 38.0, 440.0));
+    std::printf ("    INFINI octave above: %.1f dB -> %.1f dB\n", oct0, oct1);
+    check (oct1 < oct0 + 3.0, "INFINI does not keep shimmering upwards");
+    // No slow pumping (the old level regulator breathed every ~6 s): 2 s windows stay flat.
+    double lo = 1e9, hi = -1e9;
+    for (double t = 5.0; t < 38.0; t += 2.0)
+    {
+        const double l = db (rms (out, t, t + 2.0));
+        lo = std::min (lo, l);
+        hi = std::max (hi, l);
+    }
+    std::printf ("    INFINI level range over 33 s (2 s windows): %.2f dB\n", hi - lo);
+    check (hi - lo < 1.5, "INFINI level does not pump or loop");
+}
+
+void testShimmerIntervals()
+{
+    check (AmbientReverb::musicalInterval (12.0f) == 12.0f && AmbientReverb::musicalInterval (-11.0f) == -12.0f,
+           "octaves map to octaves");
+    check (AmbientReverb::musicalInterval (6.0f) == 5.0f || AmbientReverb::musicalInterval (6.0f) == 7.0f, "tritone snaps to a fourth/fifth");
+    check (AmbientReverb::musicalInterval (1.0f) == 0.0f && AmbientReverb::musicalInterval (-2.0f) == 0.0f, "small values are Off");
+    check (AmbientReverb::musicalInterval (-6.0f) == -5.0f || AmbientReverb::musicalInterval (-6.0f) == -7.0f, "negative tritone snaps");
+}
+
 // Renders a few example files to listen to / analyse (only with --render <dir>).
 void renderExamples (const std::string& dir);
 } // namespace
@@ -550,6 +645,9 @@ int main (int argc, char** argv)
         { "INFINI", testInfiniteHolds },
         { "INFINI + shimmer", testInfiniteWithShimmer },
         { "Shimmer pitch", testShimmerPitch },
+        { "Shimmer intervals", testShimmerIntervals },
+        { "Taille keeps pitch", testSizeChangeKeepsPitch },
+        { "INFINI keeps timbre", testInfiniteKeepsTimbre },
         { "Dry/Wet", testDryWet },
         { "Ducking", testDucking },
         { "Block size independence", testBlockSizeIndependence },

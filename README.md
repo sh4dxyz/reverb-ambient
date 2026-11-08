@@ -1,4 +1,4 @@
-# Horizon Noir
+# D33P
 
 Reverb ambient sombre (VST3 / AU / Standalone, Windows et macOS) construite avec JUCE.
 Pensée pour de longues nappes façon dark ambient : 10 à 60 secondes de queue, puis l'infini.
@@ -10,28 +10,28 @@ Télécharge le dernier build dans les **Releases** du dépôt (pré-release `la
 
 | Système | Fichier | Où le copier |
 |---|---|---|
-| Windows | `Horizon Noir.vst3` | `C:\Program Files\Common Files\VST3\` |
-| macOS | `Horizon Noir.vst3` | `~/Library/Audio/Plug-Ins/VST3/` |
-| macOS | `Horizon Noir.component` (AU) | `~/Library/Audio/Plug-Ins/Components/` |
+| Windows | `D33P.vst3` | `C:\Program Files\Common Files\VST3\` |
+| macOS | `D33P.vst3` | `~/Library/Audio/Plug-Ins/VST3/` |
+| macOS | `D33P.component` (AU) | `~/Library/Audio/Plug-Ins/Components/` |
 
 Dans FL Studio : *Options → Manage plugins → Find more plugins*, puis l'ajouter en effet sur
 une piste du mixer. Dans Ableton : *Préférences → Plug-ins → VST3 personnalisés*, puis
 « Rescan ».
 
 Le build macOS n'est signé qu'en ad hoc : si macOS bloque le plugin, lance
-`xattr -cr ~/Library/Audio/Plug-Ins/VST3/"Horizon Noir.vst3"` (et la même chose pour le `.component`).
+`xattr -cr ~/Library/Audio/Plug-Ins/VST3/"D33P.vst3"` (et la même chose pour le `.component`).
 
 ## Commandes
 
 | Potard | Effet |
 |---|---|
-| **Taille** | Longueur des 16 lignes de retard (de la crypte à la cathédrale). |
+| **Taille** | Longueur des 16 lignes de retard (de la crypte à la cathédrale). La queue en cours garde sa taille et les nouveaux sons prennent la nouvelle : tourner le potard ne fait jamais glisser le pitch. |
 | **Durée** | Temps de décroissance (RT60) de 1 à 60 s. |
 | **Sombre / Clair** | Vitesse à laquelle les aigus meurent dans la queue. En sombre, la queue s'assombrit très vite. |
-| **Shimmer** | Transposition de −12 à +12 demi-tons réinjectée dans la boucle (Off à 0). |
+| **Shimmer** | Halo transposé réinjecté dans la boucle. 7 crans : octave, quinte, quarte vers le bas, Off, quarte, quinte, octave vers le haut. |
 | **Ducking** | Baisse la reverb pendant que tu joues ; elle remonte dans les silences. |
 | **Dry / Wet** | Mélange à puissance constante. |
-| **INFINI** | Gain de boucle à 1 : la nappe est tenue indéfiniment. Les nouveaux sons ne rentrent plus dans la reverb (ils passent seulement en direct). Un limiteur doux et une régulation lente gardent le niveau constant. |
+| **INFINI** | Gel total : gain de boucle à 1, plus d'absorption, modulation quasi arrêtée et shimmer suspendu, donc la nappe garde le timbre de ce qui jouait. Les nouveaux sons passent en direct sans s'y ajouter. Limiteur doux en sécurité. |
 
 Un coupe-bas fixe (100 Hz en entrée, 70 Hz en sortie, 12 dB/oct) garde la queue propre.
 
@@ -45,12 +45,13 @@ d'Ableton pour créer un WAV 24 bits.
   (−70 dBFS), limité à 60 s (fondu de sortie si la limite est atteinte).
 * Mode INFINI : les 30 dernières secondes au maximum, avec un fondu de sortie de 4 s.
 
-Les fichiers sont gardés dans `Documents/Horizon Noir/Exports` (double-clic sur la zone pour
+Les fichiers sont gardés dans `Documents/D33P/Exports` (double-clic sur la zone pour
 ouvrir le dossier). Ils ne sont jamais supprimés automatiquement, ton projet ne perd donc
 pas ses samples.
 
 ## Visuel
 
+Fenêtre de 720 × 440 par défaut (redimensionnable de 540 à 1440 px de large).
 Fond OpenGL temps réel : une nébuleuse qui réagit au son (densité selon le niveau, cœur qui
 pulse avec les graves, étoiles qui scintillent avec les aigus, couleurs selon Sombre/Clair,
 étincelles qui montent ou tombent selon le shimmer). **INFINI** effondre la nébuleuse en trou
@@ -62,8 +63,9 @@ redimensionne (proportions fixes) pour les captures d'écran.
 
 ```
 entrée → coupe-bas → 4 diffuseurs passe-tout (plate de Dattorro) par canal
-       → FDN 16 lignes (longueurs premières entre elles, matrice de Hadamard orthonormée, Jot)
-         · modulation lente de chaque retard (LFO 0,07–0,19 Hz, interpolation Hermite)
+       → 2 réservoirs FDN de 16 lignes (longueurs premières entre elles, Hadamard orthonormée, Jot)
+         · changement de Taille : les nouveaux sons partent dans l'autre réservoir
+         · modulation lente et légère de chaque retard (LFO 0,07–0,19 Hz, interpolation Hermite)
          · absorption de Jot (shelf du 1er ordre) : les aigus décroissent plus vite
          · shimmer : pitch-shifter granulaire réinjecté, gain de boucle compensé en énergie
        → coupe-bas de sortie → limiteur doux → ducking → dry/wet

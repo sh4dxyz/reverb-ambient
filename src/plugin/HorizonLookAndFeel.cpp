@@ -26,80 +26,70 @@ HorizonLookAndFeel::HorizonLookAndFeel()
 {
     setColour (juce::Slider::textBoxTextColourId, Theme::ink);
     setColour (juce::Label::textColourId, Theme::ink);
-    setColour (juce::TooltipWindow::backgroundColourId, juce::Colour (0xf0100c1c));
+    setColour (juce::TooltipWindow::backgroundColourId, juce::Colour (0xf5121117));
     setColour (juce::TooltipWindow::textColourId, Theme::ink);
-    setColour (juce::TooltipWindow::outlineColourId, Theme::glassEdge);
-}
-
-static void strokeGlowArc (juce::Graphics& g, juce::Point<float> c, float radius, float from, float to,
-                           juce::Colour colour, float thickness)
-{
-    juce::Path arc;
-    arc.addCentredArc (c.x, c.y, radius, radius, 0.0f, from, to, true);
-    // Soft bloom: wide translucent strokes under the crisp one.
-    for (int i = 4; i >= 1; --i)
-    {
-        g.setColour (colour.withAlpha (0.06f * (float) (5 - i)));
-        g.strokePath (arc, juce::PathStrokeType (thickness + (float) i * 4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    }
-    g.setColour (colour);
-    g.strokePath (arc, juce::PathStrokeType (thickness, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    setColour (juce::TooltipWindow::outlineColourId, Theme::edge);
 }
 
 void HorizonLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float pos,
                                            float startAngle, float endAngle, juce::Slider& slider)
 {
     using namespace juce;
-    const auto accent = getAccent (slider);
     const bool active = slider.isMouseOverOrDragging();
-    const float labelH = 22.0f;
+    const float labelH = 18.0f;
 
     auto bounds = Rectangle<float> ((float) x, (float) y, (float) width, (float) height);
-    auto knobArea = bounds.withTrimmedBottom (labelH).reduced (6.0f);
-    const float diameter = jmin (knobArea.getWidth(), knobArea.getHeight());
-    const auto c = knobArea.getCentre();
-    const float radius = diameter * 0.5f;
-    const float ringR = radius - 7.0f;
+    auto label = bounds.removeFromBottom (labelH);
+    const float diameter = jmin (bounds.getWidth(), bounds.getHeight()) - 4.0f;
+    const auto c = bounds.getCentre();
+    const float tickR = diameter * 0.5f;
+    const float bodyR = tickR - 7.0f;
 
-    // Glass disc.
+    // Scale ticks (detents for stepped parameters such as Shimmer).
+    const double interval = slider.getInterval();
+    const auto range = slider.getRange();
+    int numTicks = 11;
+    if (interval > 0.0 && range.getLength() / interval <= 12.0)
+        numTicks = (int) std::round (range.getLength() / interval) + 1;
+    if (slider.getProperties().contains ("detents"))
+        numTicks = (int) slider.getProperties()["detents"];
+    for (int i = 0; i < numTicks; ++i)
     {
-        ColourGradient fill (Colour (0x66221a3a), c.x, c.y - radius, Colour (0x5a05040c), c.x, c.y + radius, false);
-        g.setGradientFill (fill);
-        g.fillEllipse (c.x - ringR + 4.0f, c.y - ringR + 4.0f, (ringR - 4.0f) * 2.0f, (ringR - 4.0f) * 2.0f);
-        g.setColour (Theme::glassEdge.withMultipliedAlpha (active ? 1.3f : 0.8f));
-        g.drawEllipse (c.x - ringR + 4.0f, c.y - ringR + 4.0f, (ringR - 4.0f) * 2.0f, (ringR - 4.0f) * 2.0f, 1.0f);
+        const float a = startAngle + (endAngle - startAngle) * (float) i / (float) (numTicks - 1);
+        const auto p1 = c.getPointOnCircumference (tickR - 3.0f, a);
+        const auto p2 = c.getPointOnCircumference (tickR, a);
+        g.setColour (Theme::knobRim.brighter (0.15f));
+        g.drawLine ({ p1, p2 }, 1.0f);
     }
 
-    // Track.
-    {
-        Path track;
-        track.addCentredArc (c.x, c.y, ringR, ringR, 0.0f, startAngle, endAngle, true);
-        g.setColour (Colours::white.withAlpha (0.10f));
-        g.strokePath (track, PathStrokeType (3.0f, PathStrokeType::curved, PathStrokeType::rounded));
-    }
-
-    // Value arc: bipolar parameters grow from the top.
-    const bool bipolar = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
+    // Value arc: a thin amber line hugging the body (bipolar values grow from the top).
+    const bool bipolar = range.getStart() < 0.0 && range.getEnd() > 0.0;
     const float angle = startAngle + pos * (endAngle - startAngle);
     const float from = bipolar ? (startAngle + endAngle) * 0.5f : startAngle;
     if (std::abs (angle - from) > 0.01f)
-        strokeGlowArc (g, c, ringR, jmin (from, angle), jmax (from, angle), accent.withAlpha (active ? 1.0f : 0.9f), 3.0f);
+    {
+        Path arc;
+        arc.addCentredArc (c.x, c.y, bodyR + 3.0f, bodyR + 3.0f, 0.0f, jmin (from, angle), jmax (from, angle), true);
+        g.setColour (Theme::accent.withAlpha (active ? 1.0f : 0.8f));
+        g.strokePath (arc, PathStrokeType (1.6f, PathStrokeType::curved, PathStrokeType::butt));
+    }
 
-    // Indicator dot.
-    const auto dot = c.getPointOnCircumference (ringR, angle);
-    g.setColour (accent.withAlpha (0.35f));
-    g.fillEllipse (dot.x - 7.0f, dot.y - 7.0f, 14.0f, 14.0f);
-    g.setColour (Colours::white);
-    g.fillEllipse (dot.x - 3.0f, dot.y - 3.0f, 6.0f, 6.0f);
+    // Matte body with a faint top highlight and a 1 px rim.
+    g.setColour (Colours::black.withAlpha (0.45f));
+    g.fillEllipse (c.x - bodyR, c.y - bodyR + 2.0f, bodyR * 2.0f, bodyR * 2.0f);
+    g.setColour (Theme::knob);
+    g.fillEllipse (c.x - bodyR, c.y - bodyR, bodyR * 2.0f, bodyR * 2.0f);
+    g.setColour (Colours::white.withAlpha (0.035f));
+    g.fillEllipse (c.x - bodyR * 0.8f, c.y - bodyR * 0.9f, bodyR * 1.6f, bodyR * 1.0f);
+    g.setColour (active ? Theme::knobRim.brighter (0.3f) : Theme::knobRim);
+    g.drawEllipse (c.x - bodyR, c.y - bodyR, bodyR * 2.0f, bodyR * 2.0f, 1.0f);
 
-    // Value text inside.
-    g.setColour (active ? Colours::white : Theme::ink.withAlpha (0.85f));
-    g.setFont (Theme::labelFont (jlimit (12.0f, 18.0f, diameter * 0.17f)));
-    g.drawFittedText (slider.getTextFromValue (slider.getValue()), knobArea.reduced (ringR * 0.35f).toNearestInt(),
-                      Justification::centred, 2);
+    // Pointer.
+    g.setColour (Theme::ink);
+    g.drawLine ({ c.getPointOnCircumference (bodyR * 0.35f, angle), c.getPointOnCircumference (bodyR * 0.88f, angle) }, 2.0f);
 
-    // Name below.
-    g.setColour (active ? accent.brighter (0.4f) : Theme::inkDim);
-    g.setFont (Theme::labelFont (15.0f));
-    g.drawText (slider.getName().toUpperCase(), bounds.removeFromBottom (labelH), Justification::centred);
+    // Label, replaced by the value while the knob is touched.
+    g.setFont (Theme::labelFont (12.5f));
+    g.setColour (active ? Theme::ink : Theme::inkDim);
+    g.drawText (active ? slider.getTextFromValue (slider.getValue()) : slider.getName().toUpperCase(), label, Justification::centred);
 }

@@ -40,16 +40,38 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
         return amount; // plain percentage
     });
 
+    // Shimmer: 7 detents (octave / fifth / fourth down, off, fourth / fifth / octave up).
+    static constexpr float intervals[] = { -12.0f, -7.0f, -5.0f, 0.0f, 5.0f, 7.0f, 12.0f };
+    auto toIndex = [] (float st) {
+        int best = 3;
+        for (int i = 0; i < 7; ++i)
+            if (std::abs (intervals[i] - st) < std::abs (intervals[best] - st)) best = i;
+        return best;
+    };
+    NormalisableRange<float> shimmerRange (
+        -12.0f, 12.0f,
+        [] (float, float, float x) { return intervals[juce::jlimit (0, 6, juce::roundToInt (x * 6.0f))]; },
+        [toIndex] (float, float, float v) { return (float) toIndex (v) / 6.0f; },
+        [toIndex] (float, float, float v) { return intervals[toIndex (v)]; });
+
     auto semis = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) {
         const int st = juce::roundToInt (v);
-        return st == 0 ? String ("Off") : (st > 0 ? "+" : "") + String (st) + " st";
-    }).withValueFromStringFunction ([] (const String& t) { return t.retainCharacters ("-0123456789.").getFloatValue(); });
+        const char* name = std::abs (st) == 12 ? "Octave" : (std::abs (st) == 7 ? "Quinte" : "Quarte");
+        return st == 0 ? String ("Off") : String (name) + (st > 0 ? " +" : " -");
+    }).withValueFromStringFunction ([] (const String& t) {
+        if (t.containsIgnoreCase ("off")) return 0.0f;
+        const float sign = t.contains ("-") ? -1.0f : 1.0f;
+        if (t.containsIgnoreCase ("oct")) return 12.0f * sign;
+        if (t.containsIgnoreCase ("quint")) return 7.0f * sign;
+        if (t.containsIgnoreCase ("quart")) return 5.0f * sign;
+        return t.retainCharacters ("-0123456789.").getFloatValue();
+    });
 
     AudioProcessorValueTreeState::ParameterLayout layout;
     layout.add (std::make_unique<Float> (ParameterID { ParamIDs::size, 1 }, "Taille", NormalisableRange<float> (0.0f, 1.0f), 0.75f, percent));
     layout.add (std::make_unique<Float> (ParameterID { ParamIDs::decay, 1 }, "Duree", decayRange, 20.0f, seconds));
     layout.add (std::make_unique<Float> (ParameterID { ParamIDs::tone, 1 }, "Sombre/Clair", NormalisableRange<float> (0.0f, 1.0f), 0.3f, toneText));
-    layout.add (std::make_unique<Float> (ParameterID { ParamIDs::shimmer, 1 }, "Shimmer", NormalisableRange<float> (-12.0f, 12.0f, 1.0f), 0.0f, semis));
+    layout.add (std::make_unique<Float> (ParameterID { ParamIDs::shimmer, 1 }, "Shimmer", shimmerRange, 0.0f, semis));
     layout.add (std::make_unique<Float> (ParameterID { ParamIDs::ducking, 1 }, "Ducking", NormalisableRange<float> (0.0f, 1.0f), 0.0f, percent));
     layout.add (std::make_unique<Float> (ParameterID { ParamIDs::mix, 1 }, "Dry/Wet", NormalisableRange<float> (0.0f, 1.0f), 0.4f, percent));
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { ParamIDs::infinite, 1 }, "Infini", false));

@@ -24,14 +24,15 @@ HorizonNoirEditor::HorizonNoirEditor (HorizonNoirProcessor& p)
     setOpaque (true);
 
     addAndMakeVisible (content);
-    setupKnob (size, ParamIDs::size, "Taille", Theme::violet, utf8 ("Taille de l'espace : de la crypte \xc3\xa0 la cath\xc3\xa9" "drale."));
-    setupKnob (decay, ParamIDs::decay, utf8 ("Dur\xc3\xa9" "e"), Theme::magenta, utf8 ("Dur\xc3\xa9" "e de la queue, de 1 \xc3\xa0 60 secondes."));
-    setupKnob (tone, ParamIDs::tone, "Sombre / Clair", Theme::amber, utf8 ("Vitesse \xc3\xa0 laquelle les aigus s'\xc3\xa9teignent dans la queue."));
-    setupKnob (shimmer, ParamIDs::shimmer, "Shimmer", Theme::cyan, utf8 ("Transposition r\xc3\xa9inject\xc3\xa9" "e dans la reverb (-12 \xc3\xa0 +12 demi-tons)."));
-    setupKnob (ducking, ParamIDs::ducking, "Ducking", Theme::violet, utf8 ("Baisse la reverb pendant que tu joues, elle remonte dans les silences."));
-    setupKnob (mix, ParamIDs::mix, "Dry / Wet", Theme::magenta, utf8 ("M\xc3\xa9lange signal direct / reverb."));
+    setupKnob (size, ParamIDs::size, "Taille", utf8 ("Taille de l'espace, de la crypte \xc3\xa0 la cath\xc3\xa9" "drale. La queue en cours garde sa taille, les nouveaux sons prennent la nouvelle."));
+    setupKnob (decay, ParamIDs::decay, utf8 ("Dur\xc3\xa9" "e"), utf8 ("Dur\xc3\xa9" "e de la queue, de 1 \xc3\xa0 60 secondes."));
+    setupKnob (tone, ParamIDs::tone, "Sombre / Clair", utf8 ("Vitesse \xc3\xa0 laquelle les aigus s'\xc3\xa9teignent dans la queue."));
+    setupKnob (shimmer, ParamIDs::shimmer, "Shimmer", utf8 ("Halo transpos\xc3\xa9 r\xc3\xa9inject\xc3\xa9 dans la reverb : octave, quinte ou quarte, vers le haut ou le bas."));
+    shimmer.slider.getProperties().set ("detents", 7);
+    setupKnob (ducking, ParamIDs::ducking, "Ducking", utf8 ("Baisse la reverb pendant que tu joues, elle remonte dans les silences."));
+    setupKnob (mix, ParamIDs::mix, "Dry / Wet", utf8 ("M\xc3\xa9lange signal direct / reverb."));
 
-    infiniteButton.setTooltip (utf8 ("INFINI : la nappe est tenue ind\xc3\xa9" "finiment (les nouveaux sons ne rentrent plus dans la reverb)."));
+    infiniteButton.setTooltip (utf8 ("INFINI : fige la nappe telle quelle, ind\xc3\xa9" "finiment. Les nouveaux sons passent en direct sans s'y ajouter."));
     content.addAndMakeVisible (infiniteButton);
     infiniteAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.getState(), ParamIDs::infinite, infiniteButton);
 
@@ -60,16 +61,15 @@ HorizonNoirEditor::~HorizonNoirEditor()
     setLookAndFeel (nullptr);
 }
 
-void HorizonNoirEditor::setupKnob (Knob& k, const char* paramId, const juce::String& name, juce::Colour accent, const juce::String& tip)
+void HorizonNoirEditor::setupKnob (Knob& k, const char* paramId, const juce::String& name, const juce::String& tip)
 {
     k.slider.setName (name);
     k.slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     k.slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     k.slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
-    k.slider.setMouseDragSensitivity (220);
+    k.slider.setMouseDragSensitivity (200);
     k.slider.setVelocityBasedMode (false);
     k.slider.setTooltip (tip);
-    HorizonLookAndFeel::setAccent (k.slider, accent);
     content.addAndMakeVisible (k.slider);
     k.attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.getState(), paramId, k.slider);
 }
@@ -92,26 +92,26 @@ void HorizonNoirEditor::resized()
     content.setBounds (0, 0, designWidth, designHeight);
     content.setTransform (juce::AffineTransform::scale (scale));
 
-    // Bottom row: three knobs | INFINI | three knobs.
-    const int knobW = 112, knobH = 132, rowY = designHeight - knobH - 28;
-    const int infW = 150;
-    const int gap = 8;
-    const int totalW = 6 * knobW + infW + 6 * gap;
+    // Faceplate along the bottom: three knobs | INFINI | three knobs.
+    const int knobW = 78, knobH = 86, rowY = designHeight - knobH - 18;
+    const int infW = 96, gap = 6;
+    const int totalW = 6 * knobW + infW + 2 * 14 + 4 * gap;
     int x = (designWidth - totalW) / 2;
     for (auto* k : { &size, &decay, &tone })
     {
         k->slider.setBounds (x, rowY, knobW, knobH);
         x += knobW + gap;
     }
-    infiniteButton.setBounds (x, rowY - 18, infW, knobH + 18);
-    x += infW + gap;
+    x += 14 - gap;
+    infiniteButton.setBounds (x, rowY + 24, infW, 30);
+    x += infW + 14;
     for (auto* k : { &shimmer, &ducking, &mix })
     {
         k->slider.setBounds (x, rowY, knobW, knobH);
         x += knobW + gap;
     }
 
-    dragZone.setBounds (designWidth - 36 - 330, 30, 330, 58);
+    dragZone.setBounds (designWidth - 20 - 196, 18, 196, 34);
 }
 
 void HorizonNoirEditor::timerCallback()
@@ -152,20 +152,26 @@ void HorizonNoirEditor::timerCallback()
 void HorizonNoirEditor::Content::paint (juce::Graphics& g)
 {
     using namespace juce;
-    // Title block.
-    g.setFont (Theme::titleFont (30.0f));
-    g.setColour (Colours::white.withAlpha (0.10f));
-    g.drawText ("HORIZON NOIR", 38, 36, 520, 40, Justification::left);
-    g.setColour (Colours::white);
-    g.drawText ("HORIZON NOIR", 36, 34, 520, 40, Justification::left);
-    g.setFont (Theme::labelFont (14.0f, false));
+    // Title.
+    g.setFont (Theme::titleFont (15.0f));
+    g.setColour (Theme::ink);
+    g.drawText ("D33P", 22, 18, 300, 20, Justification::left);
+    g.setFont (Theme::labelFont (11.5f, false));
     g.setColour (Theme::inkDim);
-    g.drawText (String::fromUTF8 ("AMBIENT REVERB  \xc2\xb7  FDN 16 LIGNES  \xc2\xb7  SHIMMER  \xc2\xb7  INFINI"), 38, 74, 520, 20, Justification::left);
+    g.drawText ("AMBIENT REVERB", 23, 37, 300, 14, Justification::left);
 
-    // Soft dark floor so the controls read on any part of the nebula.
-    ColourGradient floor (Colour (0x00000000), 0.0f, (float) getHeight() - 230.0f, Colour (0xb0030208), 0.0f, (float) getHeight(), false);
-    g.setGradientFill (floor);
-    g.fillRect (0, getHeight() - 230, getWidth(), 230);
+    // Faceplate.
+    const float top = (float) getHeight() - 122.0f;
+    g.setColour (Theme::panel);
+    g.fillRect (0.0f, top, (float) getWidth(), (float) getHeight() - top);
+    g.setColour (Theme::edge);
+    g.drawHorizontalLine ((int) top, 0.0f, (float) getWidth());
+
+    // Hairline dividers around INFINI.
+    const auto& inf = owner.infiniteButton.getBounds();
+    g.setColour (Theme::edge);
+    g.drawVerticalLine (inf.getX() - 8, top + 16.0f, (float) getHeight() - 16.0f);
+    g.drawVerticalLine (inf.getRight() + 7, top + 16.0f, (float) getHeight() - 16.0f);
 }
 
 void HorizonNoirEditor::Content::mouseDown (const juce::MouseEvent& e)

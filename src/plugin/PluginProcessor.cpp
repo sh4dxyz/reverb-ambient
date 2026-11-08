@@ -5,7 +5,7 @@ HorizonNoirProcessor::HorizonNoirProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput ("Input", juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      state (*this, nullptr, "HorizonNoir", createParameterLayout())
+      state (*this, nullptr, "D33P", createParameterLayout())
 {
     pSize = state.getRawParameterValue (ParamIDs::size);
     pDecay = state.getRawParameterValue (ParamIDs::decay);

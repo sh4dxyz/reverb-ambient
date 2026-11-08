@@ -2,17 +2,16 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+// Sober "hardware faceplate" look: matte knobs, cream pointer, fine ticks, one warm accent.
 namespace Theme
 {
-inline const juce::Colour ink { 0xffeae6ff };
-inline const juce::Colour inkDim { 0x99c9c2ee };
-inline const juce::Colour glass { 0x5a0b0918 };
-inline const juce::Colour glassEdge { 0x40ffffff };
-inline const juce::Colour magenta { 0xffff3d9a };
-inline const juce::Colour violet { 0xff8f62ff };
-inline const juce::Colour cyan { 0xff3fd8ff };
-inline const juce::Colour amber { 0xffffb35c };
-inline const juce::Colour gold { 0xffffd89a };
+inline const juce::Colour ink { 0xffe8e2d4 };     // cream
+inline const juce::Colour inkDim { 0xff8d8796 };  // labels
+inline const juce::Colour panel { 0xec0c0b10 };   // faceplate
+inline const juce::Colour edge { 0xff2b2833 };    // hairlines
+inline const juce::Colour knob { 0xff1c1a21 };
+inline const juce::Colour knobRim { 0xff3a3742 };
+inline const juce::Colour accent { 0xffd9a35b };  // amber
 
 juce::Font titleFont (float height);
 juce::Font labelFont (float height, bool semiBold = true);
@@ -26,12 +25,5 @@ public:
     void drawRotarySlider (juce::Graphics&, int x, int y, int width, int height, float sliderPos,
                            float rotaryStartAngle, float rotaryEndAngle, juce::Slider&) override;
 
-    juce::Font getLabelFont (juce::Label&) override { return Theme::labelFont (15.0f); }
-
-    static void setAccent (juce::Component& c, juce::Colour colour) { c.getProperties().set ("accent", (int) colour.getARGB()); }
-    static juce::Colour getAccent (const juce::Component& c)
-    {
-        const auto v = c.getProperties()["accent"];
-        return v.isVoid() ? Theme::violet : juce::Colour ((juce::uint32) (int) v);
-    }
+    juce::Font getLabelFont (juce::Label&) override { return Theme::labelFont (13.0f); }
 };

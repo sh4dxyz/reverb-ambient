@@ -190,7 +190,7 @@ class PitchShifter
 public:
     void prepare (double sampleRate)
     {
-        window = (float) std::round (sampleRate * 0.060); // 60 ms grains
+        window = (float) std::round (sampleRate * 0.085); // 85 ms grains: smoother on dense tails
         line.prepare ((int) window + 8);
         phase = 0.0f;
     }

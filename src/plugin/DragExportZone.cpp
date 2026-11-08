@@ -12,7 +12,7 @@ DragExportZone::DragExportZone (const rvb::TailRecorder& r) : recorder (r)
 juce::File DragExportZone::getExportFolder()
 {
     return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
-        .getChildFile ("Horizon Noir")
+        .getChildFile ("D33P")
         .getChildFile ("Exports");
 }
 
@@ -33,99 +33,56 @@ void DragExportZone::advance (float dt, float level)
 void DragExportZone::paint (juce::Graphics& g)
 {
     using namespace juce;
-    auto b = getLocalBounds().toFloat().reduced (1.0f);
+    auto b = getLocalBounds().toFloat().reduced (0.5f);
     const bool hasTake = recorder.hasTake();
     const bool active = recorder.isTakeActive();
     const bool over = isMouseOver (true);
-    const float corner = b.getHeight() * 0.5f;
 
-    g.setColour (Colour (0x880a0814));
-    g.fillRoundedRectangle (b, corner);
-
-    // Live level history drawn as a mirrored waveform.
+    g.setColour (Theme::panel);
+    g.fillRoundedRectangle (b, 3.0f);
+    g.setColour (over ? Theme::knobRim.brighter (0.4f) : Theme::edge.brighter (0.2f));
+    g.drawRoundedRectangle (b, 3.0f, 1.0f);
+    if (flash > 0.0f)
     {
-        auto wave = b.reduced (corner * 0.8f, 6.0f);
-        Path p;
-        const int n = (int) history.size();
+        g.setColour (Theme::ink.withAlpha (flash * 0.25f));
+        g.fillRoundedRectangle (b, 3.0f);
+    }
+
+    auto content = b.reduced (10.0f, 0.0f);
+
+    // Status LED: amber while recording, cream when a take is ready.
+    {
+        const Point<float> c (content.getX() + 3.0f, content.getCentreY());
+        const Colour led = active ? Theme::accent.withAlpha (0.55f + 0.45f * std::sin (phase * 5.0f))
+                                  : (hasTake ? Theme::ink.withAlpha (0.8f) : Theme::knobRim);
+        g.setColour (led);
+        g.fillEllipse (c.x - 3.0f, c.y - 3.0f, 6.0f, 6.0f);
+        content.removeFromLeft (14.0f);
+    }
+
+    // Duration on the right.
+    auto right = content.removeFromRight (52.0f);
+    g.setFont (Theme::labelFont (14.0f));
+    g.setColour (hasTake ? Theme::ink : Theme::inkDim);
+    g.drawText (hasTake ? String (recorder.currentTakeSeconds(), 1) + " s" : String ("--"), right, Justification::centredRight);
+
+    // Small level history between text and duration.
+    auto meter = content.removeFromRight (64.0f).reduced (4.0f, 11.0f);
+    {
+        const int n = 32;
+        const float w = meter.getWidth() / (float) n;
         for (int i = 0; i < n; ++i)
         {
-            const float v = history[(historyPos + (size_t) i) % history.size()];
-            const float xx = wave.getX() + wave.getWidth() * (float) i / (float) (n - 1);
-            const float hh = jmax (0.5f, v * wave.getHeight() * 0.5f);
-            p.addRoundedRectangle (xx - 1.0f, wave.getCentreY() - hh, 2.0f, hh * 2.0f, 1.0f);
-        }
-        ColourGradient grad (Theme::magenta.withAlpha (0.35f), wave.getX(), 0, Theme::cyan.withAlpha (0.35f), wave.getRight(), 0, false);
-        g.setGradientFill (grad);
-        g.fillPath (p);
-    }
-
-    // Border: animated gradient while hovered or recording.
-    {
-        const float a = over ? 0.95f : (active ? 0.6f + 0.3f * std::sin (phase * 4.0f) : 0.35f);
-        ColourGradient edge (Theme::magenta.withAlpha (a), b.getX(), b.getY(), Theme::cyan.withAlpha (a), b.getRight(), b.getBottom(), false);
-        g.setGradientFill (edge);
-        g.drawRoundedRectangle (b, corner, over ? 2.0f : 1.4f);
-        if (flash > 0.0f)
-        {
-            g.setColour (Colours::white.withAlpha (flash * 0.5f));
-            g.fillRoundedRectangle (b, corner);
+            const size_t idx = (historyPos + history.size() - (size_t) n + (size_t) i) % history.size();
+            const float h = jmax (1.0f, history[idx] * meter.getHeight());
+            g.setColour (Theme::inkDim.withAlpha (0.55f));
+            g.fillRect (meter.getX() + (float) i * w, meter.getBottom() - h, jmax (1.0f, w - 1.0f), h);
         }
     }
 
-    auto content = b.reduced (corner * 0.7f, 0.0f);
-
-    // Drag glyph (arrow leaving a box).
-    {
-        auto icon = content.removeFromLeft (b.getHeight() * 0.8f).reduced (b.getHeight() * 0.18f);
-        Path arrow;
-        const auto c = icon.getCentre();
-        const float s = icon.getHeight() * 0.5f;
-        arrow.startNewSubPath (c.x, c.y - s);
-        arrow.lineTo (c.x, c.y + s * 0.5f);
-        arrow.startNewSubPath (c.x - s * 0.55f, c.y - s * 0.05f);
-        arrow.lineTo (c.x, c.y + s * 0.5f);
-        arrow.lineTo (c.x + s * 0.55f, c.y - s * 0.05f);
-        arrow.startNewSubPath (c.x - s, c.y + s * 0.95f);
-        arrow.lineTo (c.x + s, c.y + s * 0.95f);
-        g.setColour (hasTake ? Colours::white : Theme::inkDim);
-        g.strokePath (arrow, PathStrokeType (2.0f, PathStrokeType::curved, PathStrokeType::rounded));
-    }
-
-    // Status on the right.
-    auto status = content.removeFromRight (84.0f);
-    String right;
-    Colour rightCol = Theme::inkDim;
-    if (hasTake)
-    {
-        const double secs = recorder.currentTakeSeconds();
-        right = String (secs, 1) + " s";
-        rightCol = active ? Theme::magenta.brighter (0.3f) : Theme::cyan;
-    }
-    else
-    {
-        right = "--";
-    }
-    g.setFont (Theme::labelFont (19.0f));
-    g.setColour (rightCol);
-    g.drawText (right, status.removeFromTop (status.getHeight() * 0.6f), Justification::centredRight);
-    g.setFont (Theme::labelFont (12.0f, false));
-    g.setColour (Theme::inkDim);
-    g.drawText (active ? String ("REC") : (hasTake ? String::fromUTF8 ("PR\xc3\x8aT") : String ("EN ATTENTE")), status,
-                Justification::centredRight);
-    if (active)
-    {
-        g.setColour (Theme::magenta.withAlpha (0.5f + 0.5f * std::sin (phase * 6.0f)));
-        g.fillEllipse (status.getRight() - 46.0f, status.getCentreY() - 3.0f, 6.0f, 6.0f);
-    }
-
-    // Main text.
-    g.setColour (Colours::white.withAlpha (hasTake ? 1.0f : 0.6f));
-    g.setFont (Theme::labelFont (18.0f));
-    auto top = content.removeFromTop (content.getHeight() * 0.56f);
-    g.drawText (lastMessage.isNotEmpty() ? lastMessage : String ("GLISSE LA NAPPE"), top, Justification::bottomLeft);
-    g.setColour (Theme::inkDim);
-    g.setFont (Theme::labelFont (13.0f, false));
-    g.drawText (String::fromUTF8 ("vers ta piste \xc2\xb7 WAV 24 bits"), content, Justification::topLeft);
+    g.setFont (Theme::labelFont (13.0f));
+    g.setColour (over ? Theme::ink : Theme::inkDim.brighter (0.3f));
+    g.drawText (lastMessage.isNotEmpty() ? lastMessage : String::fromUTF8 ("GLISSER \xe2\x86\x92 WAV"), content, Justification::centredLeft);
 }
 
 juce::File DragExportZone::writeTake()
@@ -139,7 +96,7 @@ juce::File DragExportZone::writeTake()
         return {};
 
     const auto stamp = juce::Time::getCurrentTime().formatted ("%Y-%m-%d_%H-%M-%S");
-    const auto name = "HorizonNoir_" + stamp + (take.infinite ? "_INFINI_" : "_") + juce::String (juce::roundToInt (take.seconds())) + "s.wav";
+    const auto name = "D33P_" + stamp + (take.infinite ? "_INFINI_" : "_") + juce::String (juce::roundToInt (take.seconds())) + "s.wav";
     auto file = folder.getNonexistentChildFile (name.upToLastOccurrenceOf (".wav", false, false), ".wav", false);
 
     juce::WavAudioFormat wav;

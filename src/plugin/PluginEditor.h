@@ -8,7 +8,7 @@
 
 #include <juce_opengl/juce_opengl.h>
 
-// The editor is laid out at a fixed design size (960 x 600) inside `content`, which is
+// The editor is laid out at a fixed design size (720 x 440) inside `content`, which is
 // scaled to the window: the whole UI (and the OpenGL nebula behind it) resizes smoothly
 // for screen captures.
 class HorizonNoirEditor final : public juce::AudioProcessorEditor, private juce::Timer
@@ -20,8 +20,8 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int designWidth = 960;
-    static constexpr int designHeight = 600;
+    static constexpr int designWidth = 720;
+    static constexpr int designHeight = 440;
 
 private:
     class Content final : public juce::Component
@@ -45,7 +45,7 @@ private:
     };
 
     void timerCallback() override;
-    void setupKnob (Knob&, const char* paramId, const juce::String& name, juce::Colour accent, const juce::String& tip);
+    void setupKnob (Knob&, const char* paramId, const juce::String& name, const juce::String& tip);
 
     HorizonNoirProcessor& processor;
     HorizonLookAndFeel lookAndFeel;

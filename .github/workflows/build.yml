@@ -40,7 +40,7 @@ jobs:
             os: macos-latest
     runs-on: ${{ matrix.os }}
     env:
-      ARTEFACTS: build/HorizonNoir_artefacts/Release
+      ARTEFACTS: build/D33P_artefacts/Release
     steps:
       - uses: actions/checkout@v4
 
@@ -71,7 +71,7 @@ jobs:
           7z x -opluginval pluginval.zip > /dev/null
           set -o pipefail
           ./pluginval/pluginval.exe --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs \
-            --validate "$ARTEFACTS/VST3/Horizon Noir.vst3" 2>&1 | tee pluginval.txt \
+            --validate "$ARTEFACTS/VST3/D33P.vst3" 2>&1 | tee pluginval.txt \
             || { tail -n 40 pluginval.txt | sed 's/^/::error::/'; exit 1; }
 
       - name: Package (Windows)
@@ -79,16 +79,16 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item -Recurse "${{ env.ARTEFACTS }}/VST3/Horizon Noir.vst3" dist/
-          Copy-Item "${{ env.ARTEFACTS }}/Standalone/Horizon Noir.exe" dist/
+          Copy-Item -Recurse "${{ env.ARTEFACTS }}/VST3/D33P.vst3" dist/
+          Copy-Item "${{ env.ARTEFACTS }}/Standalone/D33P.exe" dist/
           Copy-Item README.md dist/
-          Compress-Archive -Path dist/* -DestinationPath HorizonNoir-Windows.zip
+          Compress-Archive -Path dist/* -DestinationPath D33P-Windows.zip
 
       # ------------------------------------------------------------------ macOS
       - name: Ad-hoc sign (macOS)
         if: runner.os == 'macOS'
         run: |
-          for b in "$ARTEFACTS/VST3/Horizon Noir.vst3" "$ARTEFACTS/AU/Horizon Noir.component" "$ARTEFACTS/Standalone/Horizon Noir.app"; do
+          for b in "$ARTEFACTS/VST3/D33P.vst3" "$ARTEFACTS/AU/D33P.component" "$ARTEFACTS/Standalone/D33P.app"; do
             codesign --force --deep --sign - "$b"
           done
 
@@ -96,17 +96,17 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R "$ARTEFACTS/AU/Horizon Noir.component" ~/Library/Audio/Plug-Ins/Components/
+          cp -R "$ARTEFACTS/AU/D33P.component" ~/Library/Audio/Plug-Ins/Components/
           killall -9 AudioComponentRegistrar 2>/dev/null || true
           sleep 2
           auval -a | grep -i "Sh4d" || true
-          auval -v aufx HzNr Sh4d
+          auval -v aufx D33p Sh4d
 
           curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
           unzip -q pluginval.zip
           PV=pluginval.app/Contents/MacOS/pluginval
           set -o pipefail
-          for target in "$ARTEFACTS/VST3/Horizon Noir.vst3" ~/Library/Audio/Plug-Ins/Components/"Horizon Noir.component"; do
+          for target in "$ARTEFACTS/VST3/D33P.vst3" ~/Library/Audio/Plug-Ins/Components/"D33P.component"; do
             $PV --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate "$target" 2>&1 | tee pluginval.txt \
               || { tail -n 40 pluginval.txt | sed 's/^/::error::/'; exit 1; }
           done
@@ -115,11 +115,31 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           mkdir dist
-          ditto "$ARTEFACTS/VST3/Horizon Noir.vst3" "dist/Horizon Noir.vst3"
-          ditto "$ARTEFACTS/AU/Horizon Noir.component" "dist/Horizon Noir.component"
-          ditto "$ARTEFACTS/Standalone/Horizon Noir.app" "dist/Horizon Noir.app"
+          ditto "$ARTEFACTS/VST3/D33P.vst3" "dist/D33P.vst3"
+          ditto "$ARTEFACTS/AU/D33P.component" "dist/D33P.component"
+          ditto "$ARTEFACTS/Standalone/D33P.app" "dist/D33P.app"
           cp README.md dist/
-          ditto -c -k --sequesterRsrc dist HorizonNoir-macOS.zip
+          ditto -c -k --sequesterRsrc dist D33P-macOS.zip
+
+      - name: Screenshot of the UI (macOS Standalone)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          open "dist/D33P.app"
+          sleep 10
+          osascript -e 'tell application "D33P" to activate' || true
+          sleep 2
+          screencapture -x ui-macos.png
+          pkill -f "D33P.app" || true
+          ls -la ui-macos.png
+
+      - name: Upload screenshot
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: D33P-screenshot
+          path: ui-macos.png
+          if-no-files-found: ignore
 
       # ------------------------------------------------------------------ outputs
       - name: Upload pluginval logs
@@ -133,8 +153,8 @@ jobs:
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: HorizonNoir-${{ matrix.name }}
-          path: HorizonNoir-${{ matrix.name }}.zip
+          name: D33P-${{ matrix.name }}
+          path: D33P-${{ matrix.name }}.zip
 
   publish:
     name: Publish download links
@@ -152,27 +172,28 @@ jobs:
           git push -f origin latest
       - uses: actions/download-artifact@v4
         with:
-          pattern: HorizonNoir-*
+          pattern: D33P-*
           merge-multiple: true
       - name: Rolling "latest" pre-release (main)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Horizon Noir (dernier build de main)
+          name: D33P (dernier build de main)
           prerelease: true
           make_latest: false
           body: |
             Build automatique du commit ${{ github.sha }}.
-            Windows : copier `Horizon Noir.vst3` dans `C:\Program Files\Common Files\VST3`.
+            Windows : copier `D33P.vst3` dans `C:\Program Files\Common Files\VST3`.
             macOS : copier le .vst3 dans `~/Library/Audio/Plug-Ins/VST3` et le .component dans `~/Library/Audio/Plug-Ins/Components`.
           files: |
-            HorizonNoir-Windows.zip
-            HorizonNoir-macOS.zip
+            D33P-Windows.zip
+            D33P-macOS.zip
+            ui-macos.png
       - name: Versioned release (tags)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            HorizonNoir-Windows.zip
-            HorizonNoir-macOS.zip
+            D33P-Windows.zip
+            D33P-macOS.zip

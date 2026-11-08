@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.22)
 
-project (HorizonNoir VERSION 0.1.0 LANGUAGES C CXX)
+project (D33P VERSION 0.1.0 LANGUAGES C CXX)
 
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,12 +41,12 @@ if (HN_BUILD_PLUGIN)
         list (APPEND HN_FORMATS AU)
     endif ()
 
-    juce_add_plugin (HorizonNoir
-        PRODUCT_NAME "Horizon Noir"
+    juce_add_plugin (D33P
+        PRODUCT_NAME "D33P"
         COMPANY_NAME "sh4d"
-        BUNDLE_ID "com.sh4d.horizonnoir"
+        BUNDLE_ID "com.sh4d.d33p"
         PLUGIN_MANUFACTURER_CODE Sh4d
-        PLUGIN_CODE HzNr
+        PLUGIN_CODE D33p
         FORMATS ${HN_FORMATS}
         IS_SYNTH FALSE
         NEEDS_MIDI_INPUT FALSE
@@ -58,30 +58,30 @@ if (HN_BUILD_PLUGIN)
         AU_MAIN_TYPE kAudioUnitType_Effect
         DESCRIPTION "Dark ambient FDN reverb with shimmer and infinite freeze")
 
-    juce_add_binary_data (HorizonNoirAssets SOURCES
+    juce_add_binary_data (D33PAssets SOURCES
         assets/fonts/Syncopate-Bold.ttf
         assets/fonts/Rajdhani-SemiBold.ttf
         assets/fonts/Rajdhani-Medium.ttf)
 
-    target_sources (HorizonNoir PRIVATE
+    target_sources (D33P PRIVATE
         src/plugin/PluginProcessor.cpp
         src/plugin/PluginEditor.cpp
         src/plugin/NebulaRenderer.cpp
         src/plugin/HorizonLookAndFeel.cpp
         src/plugin/DragExportZone.cpp)
 
-    target_include_directories (HorizonNoir PRIVATE src src/plugin)
+    target_include_directories (D33P PRIVATE src src/plugin)
 
-    target_compile_definitions (HorizonNoir PUBLIC
+    target_compile_definitions (D33P PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_DISPLAY_SPLASH_SCREEN=0
         JUCE_REPORT_APP_USAGE=0)
 
-    target_link_libraries (HorizonNoir
+    target_link_libraries (D33P
         PRIVATE
-            HorizonNoirAssets
+            D33PAssets
             juce::juce_audio_utils
             juce::juce_audio_formats
             juce::juce_opengl
