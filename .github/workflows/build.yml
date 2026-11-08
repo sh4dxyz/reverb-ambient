@@ -1,0 +1,173 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  dsp-tests:
+    name: DSP tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build -DHN_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Run DSP tests
+        run: ctest --test-dir build --output-on-failure
+
+  build:
+    name: Plugin (${{ matrix.name }})
+    needs: dsp-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    env:
+      ARTEFACTS: build/HorizonNoir_artefacts/Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Configure (macOS universal)
+        if: runner.os == 'macOS'
+        run: >
+          cmake -B build -G Xcode
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: DSP tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      # ------------------------------------------------------------------ Windows
+      - name: pluginval (VST3, Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          $vst3 = "${{ env.ARTEFACTS }}/VST3/Horizon Noir.vst3"
+          ./pluginval/pluginval.exe --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate "$vst3"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item -Recurse "${{ env.ARTEFACTS }}/VST3/Horizon Noir.vst3" dist/
+          Copy-Item "${{ env.ARTEFACTS }}/Standalone/Horizon Noir.exe" dist/
+          Copy-Item README.md dist/
+          Compress-Archive -Path dist/* -DestinationPath HorizonNoir-Windows.zip
+
+      # ------------------------------------------------------------------ macOS
+      - name: Ad-hoc sign (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          for b in "$ARTEFACTS/VST3/Horizon Noir.vst3" "$ARTEFACTS/AU/Horizon Noir.component" "$ARTEFACTS/Standalone/Horizon Noir.app"; do
+            codesign --force --deep --sign - "$b"
+          done
+
+      - name: auval + pluginval (AU and VST3, macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "$ARTEFACTS/AU/Horizon Noir.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          sleep 2
+          auval -a | grep -i "Sh4d" || true
+          auval -v aufx HzNr Sh4d
+
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          PV=pluginval.app/Contents/MacOS/pluginval
+          $PV --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate "$ARTEFACTS/VST3/Horizon Noir.vst3"
+          $PV --strictness-level 10 --verbose --validate-in-process --output-dir pluginval-logs --validate ~/Library/Audio/Plug-Ins/Components/"Horizon Noir.component"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir dist
+          ditto "$ARTEFACTS/VST3/Horizon Noir.vst3" "dist/Horizon Noir.vst3"
+          ditto "$ARTEFACTS/AU/Horizon Noir.component" "dist/Horizon Noir.component"
+          ditto "$ARTEFACTS/Standalone/Horizon Noir.app" "dist/Horizon Noir.app"
+          cp README.md dist/
+          ditto -c -k --sequesterRsrc dist HorizonNoir-macOS.zip
+
+      # ------------------------------------------------------------------ outputs
+      - name: Upload pluginval logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pluginval-logs-${{ matrix.name }}
+          path: pluginval-logs
+          if-no-files-found: ignore
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: HorizonNoir-${{ matrix.name }}
+          path: HorizonNoir-${{ matrix.name }}.zip
+
+  publish:
+    name: Publish download links
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move the "latest" tag to this commit
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git tag -f latest
+          git push -f origin latest
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: HorizonNoir-*
+          merge-multiple: true
+      - name: Rolling "latest" pre-release (main)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Horizon Noir (dernier build de main)
+          prerelease: true
+          make_latest: false
+          body: |
+            Build automatique du commit ${{ github.sha }}.
+            Windows : copier `Horizon Noir.vst3` dans `C:\Program Files\Common Files\VST3`.
+            macOS : copier le .vst3 dans `~/Library/Audio/Plug-Ins/VST3` et le .component dans `~/Library/Audio/Plug-Ins/Components`.
+          files: |
+            HorizonNoir-Windows.zip
+            HorizonNoir-macOS.zip
+      - name: Versioned release (tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            HorizonNoir-Windows.zip
+            HorizonNoir-macOS.zip
