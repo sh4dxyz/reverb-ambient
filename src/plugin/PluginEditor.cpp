@@ -142,6 +142,14 @@ void HorizonNoirEditor::timerCallback()
     v.duck.store (st.getRawParameterValue (ParamIDs::ducking)->load());
     v.infinite.store (infMorph);
 
+    // Animation phases advance by speed x dt (wrapped to keep float precision).
+    const float decayNorm = v.decay.load();
+    const float flowSpeed = (0.07f + (0.018f - 0.07f) * decayNorm) * (1.0f - 0.6f * infMorph);
+    flow = std::fmod (flow + flowSpeed * dt, 1000.0f);
+    swirl = std::fmod (swirl + 0.12f * infMorph * dt, juce::MathConstants<float>::twoPi);
+    v.flow.store (flow);
+    v.swirl.store (swirl);
+
     infiniteButton.advance (dt);
     dragZone.advance (dt, level);
 

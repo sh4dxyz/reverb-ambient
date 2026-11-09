@@ -15,6 +15,7 @@ public:
         std::atomic<float> level { 0 }, low { 0 }, high { 0 }, input { 0 };
         std::atomic<float> size { 0.5f }, decay { 0.5f }, tone { 0.3f }, shimmer { 0 }, duck { 0 }, infinite { 0 };
         std::atomic<float> mouseX { -1000 }, mouseY { -1000 }; // normalised 0..1, y down
+        std::atomic<float> flow { 0 }, swirl { 0 }; // integrated animation phases
     };
 
     explicit NebulaRenderer (juce::OpenGLContext& c) : context (c) {}

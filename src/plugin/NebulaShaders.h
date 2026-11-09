@@ -32,6 +32,11 @@ uniform float uTone;     // Sombre/Clair 0..1
 uniform float uShimmer;  // -1..1
 uniform float uDuck;     // Ducking 0..1
 uniform float uInf;      // INFINI morph 0..1
+// Phases integrated on the CPU (speed x dt summed every frame), so changing a speed only
+// changes the speed: multiplying the absolute time by a changing factor made the image
+// jump and spin wildly when INFINI or Duree moved.
+uniform float uFlow;     // gas drift
+uniform float uSwirl;    // black hole rotation
 uniform vec2  uMouse;    // pixels
 uniform vec3  uRipple0;  // x, y (pixels), age (s)
 uniform vec3  uRipple1;
@@ -134,18 +139,17 @@ void main()
     float rs = inf * (0.085 + 0.05 * uSize);
     vec2 q = p;
     q *= 1.0 + inf * rs * rs * 2.2 / max (r * r, 0.0004);
-    q = rot (inf * (1.6 / (r * 5.0 + 0.35)) + t * 0.12 * inf) * q;
+    q = rot (inf * (1.6 / (r * 5.0 + 0.35)) + uSwirl) * q;
 
     // Ducking breathes the cloud in when the dry signal plays.
     q *= 1.0 + uDuck * uInput * 0.25;
 
-    float speed = mix (0.07, 0.018, uDecay) * (1.0 - 0.6 * inf);
     float scale = mix (2.8, 1.15, uSize);
     vec2 np = q * scale + vec2 (0.0, 0.2);
 
-    vec2 w1 = vec2 (fbm (np + vec2 (0.0, t * speed)), fbm (np + vec2 (5.2, 1.3) - t * speed * 0.7));
-    vec2 w2 = vec2 (fbm (np + 3.0 * w1 + vec2 (1.7, 9.2) + t * speed * 0.4),
-                    fbm (np + 3.0 * w1 + vec2 (8.3, 2.8) - t * speed * 0.3));
+    vec2 w1 = vec2 (fbm (np + vec2 (0.0, uFlow)), fbm (np + vec2 (5.2, 1.3) - uFlow * 0.7));
+    vec2 w2 = vec2 (fbm (np + 3.0 * w1 + vec2 (1.7, 9.2) + uFlow * 0.4),
+                    fbm (np + 3.0 * w1 + vec2 (8.3, 2.8) - uFlow * 0.3));
     float n = fbm (np + 2.6 * w2);
 
     // Gas density with dark dust lanes cutting through it.
@@ -204,7 +208,7 @@ void main()
         // (no angular seam) and the approaching side is brighter (Doppler beaming).
         vec2 dp = vec2 (p.x, p.y * 5.0);
         float dr = length (dp);
-        vec2 sw = rot (t * 0.9 + 2.5 / (dr / max (rs, 0.001) + 0.5)) * dp;
+        vec2 sw = rot (t * 0.5 + 2.5 / (dr / max (rs, 0.001) + 0.5)) * dp;
         float gasDisk = fbm (sw * 9.0 / max (rs * 4.0, 0.05) + vec2 (t * 0.2, 0.0));
         float radial = smoothstep (rs * 1.25, rs * 1.6, dr) * exp (-(dr - rs * 1.4) / (rs * 1.4));
         float beaming = 1.0 + 0.7 * (-p.x / max (dr, 0.001));

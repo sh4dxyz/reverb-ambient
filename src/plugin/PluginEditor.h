@@ -59,7 +59,7 @@ private:
     DragExportZone dragZone;
     juce::TooltipWindow tooltips { this, 600 };
 
-    float level = 0, low = 0, high = 0, input = 0, infMorph = 0;
+    float level = 0, low = 0, high = 0, input = 0, infMorph = 0, flow = 0, swirl = 0;
     double lastTick = juce::Time::getMillisecondCounterHiRes();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HorizonNoirEditor)
