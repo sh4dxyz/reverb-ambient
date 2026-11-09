@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BlackHoleAnimator.h"
 #include "DragExportZone.h"
 #include "HorizonLookAndFeel.h"
 #include "InfiniteButton.h"
@@ -53,13 +54,14 @@ private:
     NebulaRenderer renderer { glContext };
 
     Content content { *this };
-    Knob size, decay, tone, shimmer, ducking, mix;
+    Knob size, decay, damping, shimmer, ducking, mix;
     InfiniteButton infiniteButton;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> infiniteAttachment;
     DragExportZone dragZone;
     juce::TooltipWindow tooltips { this, 600 };
 
-    float level = 0, low = 0, high = 0, input = 0, infMorph = 0, flow = 0, swirl = 0;
+    float level = 0, low = 0, high = 0, input = 0, flow = 0, swirl = 0;
+    BlackHoleAnimator blackHole;
     double lastTick = juce::Time::getMillisecondCounterHiRes();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HorizonNoirEditor)

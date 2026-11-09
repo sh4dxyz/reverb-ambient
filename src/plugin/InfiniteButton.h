@@ -2,11 +2,11 @@
 
 #include "HorizonLookAndFeel.h"
 
-// INFINI latch: a plain rectangular key with a small amber LED.
+// FREEZE latch: a plain rectangular key with a small amber LED.
 class InfiniteButton final : public juce::ToggleButton
 {
 public:
-    InfiniteButton() : juce::ToggleButton ("INFINI") { setClickingTogglesState (true); }
+    InfiniteButton() : juce::ToggleButton ("FREEZE") { setClickingTogglesState (true); }
 
     // Called by the editor's animation timer (soft LED fade).
     void advance (float dt)
@@ -43,7 +43,7 @@ public:
 
         g.setFont (Theme::labelFont (14.0f));
         g.setColour (Theme::inkDim.interpolatedWith (Theme::ink, led));
-        g.drawText ("INFINI", b.withTrimmedLeft (24.0f), Justification::centred);
+        g.drawText ("FREEZE", b.withTrimmedLeft (24.0f), Justification::centred);
     }
 
 private:

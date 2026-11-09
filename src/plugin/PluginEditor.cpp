@@ -24,17 +24,17 @@ HorizonNoirEditor::HorizonNoirEditor (HorizonNoirProcessor& p)
     setOpaque (true);
 
     addAndMakeVisible (content);
-    setupKnob (size, ParamIDs::size, "TAILLE", utf8 ("Taille de l'espace, de la crypte \xc3\xa0 la cath\xc3\xa9" "drale. La queue en cours garde sa taille, les nouveaux sons prennent la nouvelle."));
-    setupKnob (decay, ParamIDs::decay, utf8 ("DUR\xc3\x89" "E"), utf8 ("Dur\xc3\xa9" "e de la queue, de 1 \xc3\xa0 60 secondes."));
-    setupKnob (tone, ParamIDs::tone, "SOMBRE/CLAIR", utf8 ("Vitesse \xc3\xa0 laquelle les aigus s'\xc3\xa9teignent dans la queue."));
+    setupKnob (size, ParamIDs::size, "SIZE", utf8 ("Taille de l'espace, de la crypte \xc3\xa0 la cath\xc3\xa9" "drale. La queue en cours garde sa taille, les nouveaux sons prennent la nouvelle."));
+    setupKnob (decay, ParamIDs::decay, "DECAY", utf8 ("Dur\xc3\xa9" "e de la queue (RT60), de 1 \xc3\xa0 60 secondes."));
+    setupKnob (damping, ParamIDs::damping, "DAMPING", utf8 ("Absorption des aigus : plus c'est haut, plus la queue s'assombrit vite."));
     setupKnob (shimmer, ParamIDs::shimmer, "SHIMMER", utf8 ("Halo transpos\xc3\xa9 r\xc3\xa9inject\xc3\xa9 dans la reverb : octave, quinte ou quarte, vers le haut ou le bas."));
     shimmer.slider.getProperties().set ("detents", 7);
     setupKnob (ducking, ParamIDs::ducking, "DUCKING", utf8 ("Baisse la reverb pendant que tu joues, elle remonte dans les silences."));
-    setupKnob (mix, ParamIDs::mix, "DRY/WET", utf8 ("M\xc3\xa9lange signal direct / reverb."));
+    setupKnob (mix, ParamIDs::mix, "MIX", utf8 ("M\xc3\xa9lange signal direct / reverb."));
 
-    infiniteButton.setTooltip (utf8 ("INFINI : fige la nappe telle quelle, ind\xc3\xa9" "finiment. Les nouveaux sons passent en direct sans s'y ajouter."));
+    infiniteButton.setTooltip (utf8 ("FREEZE : fige la nappe telle quelle, ind\xc3\xa9" "finiment. Les nouveaux sons passent en direct sans s'y ajouter."));
     content.addAndMakeVisible (infiniteButton);
-    infiniteAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.getState(), ParamIDs::infinite, infiniteButton);
+    infiniteAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.getState(), ParamIDs::freeze, infiniteButton);
 
     content.addAndMakeVisible (dragZone);
 
@@ -51,6 +51,7 @@ HorizonNoirEditor::HorizonNoirEditor (HorizonNoirProcessor& p)
         c->setSizeLimits (designWidth * 3 / 4, designHeight * 3 / 4, designWidth * 2, designHeight * 2);
     }
     setSize (designWidth, designHeight);
+    blackHole.settle (processor.getState().getRawParameterValue (ParamIDs::freeze)->load() > 0.5f);
     startTimerHz (60);
 }
 
@@ -92,12 +93,12 @@ void HorizonNoirEditor::resized()
     content.setBounds (0, 0, designWidth, designHeight);
     content.setTransform (juce::AffineTransform::scale (scale));
 
-    // Faceplate along the bottom: three knobs | INFINI | three knobs.
+    // Faceplate along the bottom: three knobs | FREEZE | three knobs.
     const int knobW = 78, knobH = 86, rowY = designHeight - knobH - 18;
     const int infW = 96, gap = 6;
     const int totalW = 6 * knobW + infW + 2 * 14 + 4 * gap;
     int x = (designWidth - totalW) / 2;
-    for (auto* k : { &size, &decay, &tone })
+    for (auto* k : { &size, &decay, &damping })
     {
         k->slider.setBounds (x, rowY, knobW, knobH);
         x += knobW + gap;
@@ -127,8 +128,9 @@ void HorizonNoirEditor::timerCallback()
     follow (input, juce::jlimit (0.0f, 1.0f, m.input.load() * 2.0f), 0.5f, 0.1f);
 
     auto& st = processor.getState();
-    const bool inf = st.getRawParameterValue (ParamIDs::infinite)->load() > 0.5f;
-    infMorph += ((inf ? 1.0f : 0.0f) - infMorph) * juce::jmin (1.0f, dt * 1.6f);
+    const bool inf = st.getRawParameterValue (ParamIDs::freeze)->load() > 0.5f;
+    blackHole.advance (inf, dt);
+    const float infMorph = blackHole.freezeAmount;
 
     auto& v = renderer.visuals;
     v.level.store (level);
@@ -137,7 +139,7 @@ void HorizonNoirEditor::timerCallback()
     v.input.store (input);
     v.size.store (st.getRawParameterValue (ParamIDs::size)->load());
     v.decay.store (std::log (st.getRawParameterValue (ParamIDs::decay)->load()) / std::log (60.0f));
-    v.tone.store (st.getRawParameterValue (ParamIDs::tone)->load());
+    v.tone.store (1.0f - st.getRawParameterValue (ParamIDs::damping)->load());
     v.shimmer.store (st.getRawParameterValue (ParamIDs::shimmer)->load() / 12.0f);
     v.duck.store (st.getRawParameterValue (ParamIDs::ducking)->load());
     v.infinite.store (infMorph);
@@ -148,6 +150,12 @@ void HorizonNoirEditor::timerCallback()
     flow = std::fmod (flow + flowSpeed * dt, 1000.0f);
     swirl = std::fmod (swirl + 0.12f * infMorph * dt, juce::MathConstants<float>::twoPi);
     v.flow.store (flow);
+    v.hole.store (blackHole.hole);
+    v.disk.store (blackHole.disk);
+    v.spread.store (blackHole.spread);
+    v.pull.store (blackHole.pull);
+    v.flash.store (blackHole.flash);
+    v.burst.store (blackHole.burst);
     v.swirl.store (swirl);
 
     infiniteButton.advance (dt);
@@ -175,7 +183,7 @@ void HorizonNoirEditor::Content::paint (juce::Graphics& g)
     g.setColour (Theme::edge);
     g.drawHorizontalLine ((int) top, 0.0f, (float) getWidth());
 
-    // Hairline dividers around INFINI.
+    // Hairline dividers around FREEZE.
     const auto& inf = owner.infiniteButton.getBounds();
     g.setColour (Theme::edge);
     g.drawVerticalLine (inf.getX() - 8, top + 16.0f, (float) getHeight() - 16.0f);

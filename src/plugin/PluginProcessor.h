@@ -53,11 +53,11 @@ private:
     juce::AudioProcessorValueTreeState state;
     std::atomic<float>* pSize = nullptr;
     std::atomic<float>* pDecay = nullptr;
-    std::atomic<float>* pTone = nullptr;
+    std::atomic<float>* pDamping = nullptr;
     std::atomic<float>* pShimmer = nullptr;
     std::atomic<float>* pDucking = nullptr;
     std::atomic<float>* pMix = nullptr;
-    std::atomic<float>* pInfinite = nullptr;
+    std::atomic<float>* pFreeze = nullptr;
 
     rvb::AmbientReverb reverb;
     rvb::TailRecorder recorder;

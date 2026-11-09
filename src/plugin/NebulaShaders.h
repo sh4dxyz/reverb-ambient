@@ -37,6 +37,13 @@ uniform float uInf;      // INFINI morph 0..1
 // jump and spin wildly when INFINI or Duree moved.
 uniform float uFlow;     // gas drift
 uniform float uSwirl;    // black hole rotation
+// Black hole life cycle, driven frame by frame by the editor (see BlackHoleAnimator).
+uniform float uHole;     // horizon size 0..1 (overshoots slightly when it snaps open)
+uniform float uDisk;     // accretion disk brightness 0..1
+uniform float uSpread;   // disk flung outwards while the hole evaporates 0..1
+uniform float uPull;     // infall: gas dragged inwards and spun up just before collapse
+uniform float uFlash;    // collapse / evaporation flash
+uniform float uBurst;    // age (s) of the evaporation shock wave, < 0 when none
 uniform vec2  uMouse;    // pixels
 uniform vec3  uRipple0;  // x, y (pixels), age (s)
 uniform vec3  uRipple1;
@@ -120,7 +127,6 @@ void main()
     vec2 frag = vUv * uRes;
     vec2 p = (frag - 0.5 * uRes) / uRes.y;
     float t = uTime;
-    float inf = clamp (uInf, 0.0, 1.0);
 
     // Click ripples (visual only).
     float rippleGlow = 0.0;
@@ -135,11 +141,28 @@ void main()
 
     float r = length (p);
 
-    // INFINI: the nebula collapses into a black hole (lensing + swirl).
-    float rs = inf * (0.085 + 0.05 * uSize);
+    // FREEZE: the nebula collapses into a black hole.
+    float hole = max (uHole, 0.0);
+    float rBase = 0.085 + 0.05 * uSize;
+    float rs = hole * rBase;
     vec2 q = p;
-    q *= 1.0 + inf * rs * rs * 2.2 / max (r * r, 0.0004);
-    q = rot (inf * (1.6 / (r * 5.0 + 0.35)) + uSwirl) * q;
+    // Infall: sample further out near the centre, so the gas looks dragged inwards.
+    q *= 1.0 + uPull * 0.9 / (1.0 + r * 6.0);
+    // Gravitational lensing grows with the horizon.
+    q *= 1.0 + rs * rs * 2.4 / max (r * r, 0.0004);
+    // Frame dragging: differential swirl, strongest close to the hole.
+    q = rot ((min (hole, 1.0) + uPull * 1.5) * (1.6 / (r * 5.0 + 0.35)) + uSwirl) * q;
+
+    // Evaporation shock wave: an expanding front pushing the gas outwards.
+    float burstGlow = 0.0;
+    if (uBurst > 0.0 && uBurst < 2.5)
+    {
+        float life = 1.0 - uBurst / 2.5;
+        float bk = (r - uBurst * 0.75) * 45.0;
+        burstGlow = exp (-bk * bk) * life;
+        q -= p / max (r, 0.0001) * burstGlow * 0.05;
+        q *= 1.0 - 0.3 * exp (-r * r * 6.0) * life;
+    }
 
     // Ducking breathes the cloud in when the dry signal plays.
     q *= 1.0 + uDuck * uInput * 0.25;
@@ -176,7 +199,7 @@ void main()
 
     // Small pulsing core (follows the low end).
     float core = exp (-r * r * 70.0) * (0.05 + 0.7 * uLow) + exp (-r * r * 900.0) * 0.6 * uLow;
-    col += mix (vec3 (1.0, 0.5, 0.6), vec3 (0.75, 0.95, 1.0), uTone) * core * (1.0 - inf);
+    col += mix (vec3 (1.0, 0.5, 0.6), vec3 (0.75, 0.95, 1.0), uTone) * core * (1.0 + 1.2 * uPull) * (1.0 - min (hole, 1.0));
 
     // Lensed star field.
     col += stars (q * 0.8, 0.968, uHigh * 2.0) * (1.0 - 0.7 * dens);
@@ -198,34 +221,48 @@ void main()
         }
     }
 
-    if (inf > 0.001)
+    if (rs > 0.0004 || uDisk > 0.001)
     {
-        // Horizon swallows everything behind it.
-        float horizon = smoothstep (rs * 0.97, rs * 1.03, r);
-        col *= mix (1.0, horizon, inf);
+        float h1 = min (hole, 1.0);
+        // Shadow: light grazing the photon sphere (~2.6 rs) is dimmed and reddened.
+        float horizon = rs > 0.0004 ? smoothstep (rs * 0.97, rs * 1.03, r) : 1.0;
+        float shadow = rs > 0.0004 ? smoothstep (rs, rs * 2.6, r) : 1.0;
+        col *= mix (vec3 (1.0), mix (vec3 (0.35, 0.12, 0.08), vec3 (1.0), shadow), h1);
+        col *= horizon;
 
-        // Thin tilted accretion disk. The texture is sampled in a rotating cartesian frame
-        // (no angular seam) and the approaching side is brighter (Doppler beaming).
+        // Thin tilted accretion disk. Its radius follows the hole while it forms and is
+        // flung outwards when the hole evaporates. The texture is sampled in a rotating
+        // cartesian frame (no angular seam); the approaching side is brighter (Doppler).
+        float rD = rBase * (0.55 + 0.45 * h1) * (1.0 + uSpread * 2.5);
         vec2 dp = vec2 (p.x, p.y * 5.0);
         float dr = length (dp);
-        vec2 sw = rot (t * 0.5 + 2.5 / (dr / max (rs, 0.001) + 0.5)) * dp;
-        float gasDisk = fbm (sw * 9.0 / max (rs * 4.0, 0.05) + vec2 (t * 0.2, 0.0));
-        float radial = smoothstep (rs * 1.25, rs * 1.6, dr) * exp (-(dr - rs * 1.4) / (rs * 1.4));
+        vec2 sw = rot (t * 0.5 + 2.5 / (dr / rD + 0.5)) * dp;
+        float gasDisk = fbm (sw * 9.0 / (rD * 4.0) + vec2 (t * 0.2, 0.0));
+        // Lights up from the inner edge outwards while it forms.
+        float outer = rD * (0.25 + 1.15 * clamp (uDisk + uSpread, 0.0, 1.0));
+        float radial = smoothstep (rD * 1.25, rD * 1.6, dr) * exp (-max (dr - rD * 1.4, 0.0) / outer);
         float beaming = 1.0 + 0.7 * (-p.x / max (dr, 0.001));
-        float diskI = radial * (0.35 + 1.3 * gasDisk) * beaming;
+        float diskI = radial * (0.35 + 1.3 * gasDisk) * beaming * uDisk;
         vec3 diskCol = mix (vec3 (1.0, 0.30, 0.06), vec3 (1.0, 0.93, 0.80), clamp (radial * 1.3, 0.0, 1.0));
         float front = p.y < 0.0 ? 1.0 : horizon;
-        col += diskCol * diskI * front * inf * (0.9 + 1.8 * uLevel);
+        col += diskCol * diskI * front * (0.9 + 1.8 * uLevel);
 
-        // Far side of the disk, lensed into an arc over the top of the horizon.
-        float ak = (r - rs * 1.45) / (rs * 0.28);
-        float arc = exp (-ak * ak) * smoothstep (-0.2 * rs, 0.6 * rs, p.y) * (0.5 + gasDisk);
-        col += vec3 (1.0, 0.62, 0.30) * arc * 0.9 * inf * horizon;
+        if (rs > 0.0004)
+        {
+            // Far side of the disk, lensed into an arc over the top of the horizon.
+            float ak = (r - rs * 1.45) / (rs * 0.28);
+            float arc = exp (-ak * ak) * smoothstep (-0.2 * rs, 0.6 * rs, p.y) * (0.5 + gasDisk);
+            col += vec3 (1.0, 0.62, 0.30) * arc * 0.9 * uDisk * horizon;
 
-        // Photon ring.
-        float rk = (r - rs * 1.05) / (rs * 0.03 + 0.001);
-        col += vec3 (1.0, 0.88, 0.70) * exp (-rk * rk) * 1.4 * inf;
+            // Photon ring, a little hotter while the horizon overshoots.
+            float rk = (r - rs * 1.05) / (rs * 0.03 + 0.001);
+            col += vec3 (1.0, 0.86, 0.66) * exp (-rk * rk) * (0.8 + 2.0 * max (hole - 1.0, 0.0)) * h1;
+        }
     }
+
+    // Collapse / evaporation flash and shock front.
+    col += vec3 (1.0, 0.92, 0.85) * uFlash * (exp (-r * r * 400.0) * 3.0 + exp (-r * r * 30.0) * 0.3);
+    col += vec3 (1.0, 0.78, 0.55) * burstGlow * 0.22;
 
     col += mix (vec3 (1.0, 0.35, 0.75), vec3 (0.35, 0.9, 1.0), uTone) * rippleGlow * 0.22;
 

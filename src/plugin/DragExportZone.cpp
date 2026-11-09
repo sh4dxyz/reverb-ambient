@@ -82,7 +82,7 @@ void DragExportZone::paint (juce::Graphics& g)
 
     g.setFont (Theme::labelFont (13.0f));
     g.setColour (over ? Theme::ink : Theme::inkDim.brighter (0.3f));
-    g.drawText (lastMessage.isNotEmpty() ? lastMessage : String::fromUTF8 ("GLISSER \xe2\x86\x92 WAV"), content, Justification::centredLeft);
+    g.drawText (lastMessage.isNotEmpty() ? lastMessage : String ("DRAG TO DAW"), content, Justification::centredLeft);
 }
 
 juce::File DragExportZone::writeTake()
@@ -96,7 +96,7 @@ juce::File DragExportZone::writeTake()
         return {};
 
     const auto stamp = juce::Time::getCurrentTime().formatted ("%Y-%m-%d_%H-%M-%S");
-    const auto name = "D33P_" + stamp + (take.infinite ? "_INFINI_" : "_") + juce::String (juce::roundToInt (take.seconds())) + "s.wav";
+    const auto name = "D33P_" + stamp + (take.infinite ? "_FREEZE_" : "_") + juce::String (juce::roundToInt (take.seconds())) + "s.wav";
     auto file = folder.getNonexistentChildFile (name.upToLastOccurrenceOf (".wav", false, false), ".wav", false);
 
     juce::WavAudioFormat wav;
@@ -128,7 +128,7 @@ void DragExportZone::mouseDrag (const juce::MouseEvent& e)
 
     if (! recorder.hasTake())
     {
-        lastMessage = juce::String::fromUTF8 ("JOUE D'ABORD UN SON");
+        lastMessage = juce::String ("PLAY SOMETHING FIRST");
         repaint();
         return;
     }
@@ -136,7 +136,7 @@ void DragExportZone::mouseDrag (const juce::MouseEvent& e)
     const auto file = writeTake();
     if (! file.existsAsFile())
     {
-        lastMessage = juce::String::fromUTF8 ("EXPORT IMPOSSIBLE");
+        lastMessage = juce::String ("EXPORT FAILED");
         repaint();
         return;
     }

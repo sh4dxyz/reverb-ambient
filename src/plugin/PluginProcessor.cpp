@@ -9,11 +9,11 @@ HorizonNoirProcessor::HorizonNoirProcessor()
 {
     pSize = state.getRawParameterValue (ParamIDs::size);
     pDecay = state.getRawParameterValue (ParamIDs::decay);
-    pTone = state.getRawParameterValue (ParamIDs::tone);
+    pDamping = state.getRawParameterValue (ParamIDs::damping);
     pShimmer = state.getRawParameterValue (ParamIDs::shimmer);
     pDucking = state.getRawParameterValue (ParamIDs::ducking);
     pMix = state.getRawParameterValue (ParamIDs::mix);
-    pInfinite = state.getRawParameterValue (ParamIDs::infinite);
+    pFreeze = state.getRawParameterValue (ParamIDs::freeze);
 }
 
 rvb::Params HorizonNoirProcessor::readParams() const
@@ -21,11 +21,11 @@ rvb::Params HorizonNoirProcessor::readParams() const
     rvb::Params p;
     p.size = pSize->load();
     p.decaySeconds = pDecay->load();
-    p.tone = pTone->load();
+    p.tone = 1.0f - pDamping->load();
     p.shimmerSemis = pShimmer->load();
     p.ducking = pDucking->load();
     p.mix = pMix->load();
-    p.infinite = pInfinite->load() > 0.5f;
+    p.infinite = pFreeze->load() > 0.5f;
     return p;
 }
 

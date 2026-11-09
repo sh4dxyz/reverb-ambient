@@ -18,12 +18,12 @@ p.note{max-width:1100px;margin:0 auto;padding:0 16px 24px;color:var(--dim);font-
 </style></head><body>
 <div id="wrap"><canvas id="c"></canvas><div class="title">D33P</div><div class="sub">APERÇU DU FOND OPENGL · LE PLUGIN UTILISE CE MÊME SHADER</div></div>
 <div id="panel">
-<label>TAILLE<input id="size" type="range" min="0" max="1" step="0.01" value="0.75"></label>
-<label>DURÉE<input id="decay" type="range" min="0" max="1" step="0.01" value="0.7"></label>
-<label>SOMBRE / CLAIR<input id="tone" type="range" min="0" max="1" step="0.01" value="0.3"></label>
+<label>SIZE<input id="size" type="range" min="0" max="1" step="0.01" value="0.75"></label>
+<label>DECAY<input id="decay" type="range" min="0" max="1" step="0.01" value="0.7"></label>
+<label>TONE (1 − DAMPING)<input id="tone" type="range" min="0" max="1" step="0.01" value="0.3"></label>
 <label>SHIMMER<input id="shimmer" type="range" min="-1" max="1" step="0.0833" value="0"></label>
 <label>NIVEAU SIMULÉ<input id="lvl" type="range" min="0" max="1" step="0.01" value="0.6"></label>
-<button id="inf">INFINI</button>
+<button id="inf">FREEZE</button>
 </div>
 <p class="note">Le son est simulé ici (pulsations aléatoires) : dans le plugin, la densité suit le niveau de la reverb, le cœur les graves et les étoiles les aigus. Clique dans l'image pour lancer une onde de choc.</p>
 <script>
@@ -49,6 +49,13 @@ uniform float uInf;      // INFINI morph 0..1
 // jump and spin wildly when INFINI or Duree moved.
 uniform float uFlow;     // gas drift
 uniform float uSwirl;    // black hole rotation
+// Black hole life cycle, driven frame by frame by the editor (see BlackHoleAnimator).
+uniform float uHole;     // horizon size 0..1 (overshoots slightly when it snaps open)
+uniform float uDisk;     // accretion disk brightness 0..1
+uniform float uSpread;   // disk flung outwards while the hole evaporates 0..1
+uniform float uPull;     // infall: gas dragged inwards and spun up just before collapse
+uniform float uFlash;    // collapse / evaporation flash
+uniform float uBurst;    // age (s) of the evaporation shock wave, < 0 when none
 uniform vec2  uMouse;    // pixels
 uniform vec3  uRipple0;  // x, y (pixels), age (s)
 uniform vec3  uRipple1;
@@ -132,7 +139,6 @@ void main()
     vec2 frag = vUv * uRes;
     vec2 p = (frag - 0.5 * uRes) / uRes.y;
     float t = uTime;
-    float inf = clamp (uInf, 0.0, 1.0);
 
     // Click ripples (visual only).
     float rippleGlow = 0.0;
@@ -147,11 +153,28 @@ void main()
 
     float r = length (p);
 
-    // INFINI: the nebula collapses into a black hole (lensing + swirl).
-    float rs = inf * (0.085 + 0.05 * uSize);
+    // FREEZE: the nebula collapses into a black hole.
+    float hole = max (uHole, 0.0);
+    float rBase = 0.085 + 0.05 * uSize;
+    float rs = hole * rBase;
     vec2 q = p;
-    q *= 1.0 + inf * rs * rs * 2.2 / max (r * r, 0.0004);
-    q = rot (inf * (1.6 / (r * 5.0 + 0.35)) + uSwirl) * q;
+    // Infall: sample further out near the centre, so the gas looks dragged inwards.
+    q *= 1.0 + uPull * 0.9 / (1.0 + r * 6.0);
+    // Gravitational lensing grows with the horizon.
+    q *= 1.0 + rs * rs * 2.4 / max (r * r, 0.0004);
+    // Frame dragging: differential swirl, strongest close to the hole.
+    q = rot ((min (hole, 1.0) + uPull * 1.5) * (1.6 / (r * 5.0 + 0.35)) + uSwirl) * q;
+
+    // Evaporation shock wave: an expanding front pushing the gas outwards.
+    float burstGlow = 0.0;
+    if (uBurst > 0.0 && uBurst < 2.5)
+    {
+        float life = 1.0 - uBurst / 2.5;
+        float bk = (r - uBurst * 0.75) * 45.0;
+        burstGlow = exp (-bk * bk) * life;
+        q -= p / max (r, 0.0001) * burstGlow * 0.05;
+        q *= 1.0 - 0.3 * exp (-r * r * 6.0) * life;
+    }
 
     // Ducking breathes the cloud in when the dry signal plays.
     q *= 1.0 + uDuck * uInput * 0.25;
@@ -188,7 +211,7 @@ void main()
 
     // Small pulsing core (follows the low end).
     float core = exp (-r * r * 70.0) * (0.05 + 0.7 * uLow) + exp (-r * r * 900.0) * 0.6 * uLow;
-    col += mix (vec3 (1.0, 0.5, 0.6), vec3 (0.75, 0.95, 1.0), uTone) * core * (1.0 - inf);
+    col += mix (vec3 (1.0, 0.5, 0.6), vec3 (0.75, 0.95, 1.0), uTone) * core * (1.0 + 1.2 * uPull) * (1.0 - min (hole, 1.0));
 
     // Lensed star field.
     col += stars (q * 0.8, 0.968, uHigh * 2.0) * (1.0 - 0.7 * dens);
@@ -210,34 +233,48 @@ void main()
         }
     }
 
-    if (inf > 0.001)
+    if (rs > 0.0004 || uDisk > 0.001)
     {
-        // Horizon swallows everything behind it.
-        float horizon = smoothstep (rs * 0.97, rs * 1.03, r);
-        col *= mix (1.0, horizon, inf);
+        float h1 = min (hole, 1.0);
+        // Shadow: light grazing the photon sphere (~2.6 rs) is dimmed and reddened.
+        float horizon = rs > 0.0004 ? smoothstep (rs * 0.97, rs * 1.03, r) : 1.0;
+        float shadow = rs > 0.0004 ? smoothstep (rs, rs * 2.6, r) : 1.0;
+        col *= mix (vec3 (1.0), mix (vec3 (0.35, 0.12, 0.08), vec3 (1.0), shadow), h1);
+        col *= horizon;
 
-        // Thin tilted accretion disk. The texture is sampled in a rotating cartesian frame
-        // (no angular seam) and the approaching side is brighter (Doppler beaming).
+        // Thin tilted accretion disk. Its radius follows the hole while it forms and is
+        // flung outwards when the hole evaporates. The texture is sampled in a rotating
+        // cartesian frame (no angular seam); the approaching side is brighter (Doppler).
+        float rD = rBase * (0.55 + 0.45 * h1) * (1.0 + uSpread * 2.5);
         vec2 dp = vec2 (p.x, p.y * 5.0);
         float dr = length (dp);
-        vec2 sw = rot (t * 0.5 + 2.5 / (dr / max (rs, 0.001) + 0.5)) * dp;
-        float gasDisk = fbm (sw * 9.0 / max (rs * 4.0, 0.05) + vec2 (t * 0.2, 0.0));
-        float radial = smoothstep (rs * 1.25, rs * 1.6, dr) * exp (-(dr - rs * 1.4) / (rs * 1.4));
+        vec2 sw = rot (t * 0.5 + 2.5 / (dr / rD + 0.5)) * dp;
+        float gasDisk = fbm (sw * 9.0 / (rD * 4.0) + vec2 (t * 0.2, 0.0));
+        // Lights up from the inner edge outwards while it forms.
+        float outer = rD * (0.25 + 1.15 * clamp (uDisk + uSpread, 0.0, 1.0));
+        float radial = smoothstep (rD * 1.25, rD * 1.6, dr) * exp (-max (dr - rD * 1.4, 0.0) / outer);
         float beaming = 1.0 + 0.7 * (-p.x / max (dr, 0.001));
-        float diskI = radial * (0.35 + 1.3 * gasDisk) * beaming;
+        float diskI = radial * (0.35 + 1.3 * gasDisk) * beaming * uDisk;
         vec3 diskCol = mix (vec3 (1.0, 0.30, 0.06), vec3 (1.0, 0.93, 0.80), clamp (radial * 1.3, 0.0, 1.0));
         float front = p.y < 0.0 ? 1.0 : horizon;
-        col += diskCol * diskI * front * inf * (0.9 + 1.8 * uLevel);
+        col += diskCol * diskI * front * (0.9 + 1.8 * uLevel);
 
-        // Far side of the disk, lensed into an arc over the top of the horizon.
-        float ak = (r - rs * 1.45) / (rs * 0.28);
-        float arc = exp (-ak * ak) * smoothstep (-0.2 * rs, 0.6 * rs, p.y) * (0.5 + gasDisk);
-        col += vec3 (1.0, 0.62, 0.30) * arc * 0.9 * inf * horizon;
+        if (rs > 0.0004)
+        {
+            // Far side of the disk, lensed into an arc over the top of the horizon.
+            float ak = (r - rs * 1.45) / (rs * 0.28);
+            float arc = exp (-ak * ak) * smoothstep (-0.2 * rs, 0.6 * rs, p.y) * (0.5 + gasDisk);
+            col += vec3 (1.0, 0.62, 0.30) * arc * 0.9 * uDisk * horizon;
 
-        // Photon ring.
-        float rk = (r - rs * 1.05) / (rs * 0.03 + 0.001);
-        col += vec3 (1.0, 0.88, 0.70) * exp (-rk * rk) * 1.4 * inf;
+            // Photon ring, a little hotter while the horizon overshoots.
+            float rk = (r - rs * 1.05) / (rs * 0.03 + 0.001);
+            col += vec3 (1.0, 0.86, 0.66) * exp (-rk * rk) * (0.8 + 2.0 * max (hole - 1.0, 0.0)) * h1;
+        }
     }
+
+    // Collapse / evaporation flash and shock front.
+    col += vec3 (1.0, 0.92, 0.85) * uFlash * (exp (-r * r * 400.0) * 3.0 + exp (-r * r * 30.0) * 0.3);
+    col += vec3 (1.0, 0.78, 0.55) * burstGlow * 0.22;
 
     col += mix (vec3 (1.0, 0.35, 0.75), vec3 (0.35, 0.9, 1.0), uTone) * rippleGlow * 0.22;
 
@@ -260,22 +297,31 @@ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_
 const loc=gl.getAttribLocation(p,'position');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
 const U=n=>gl.getUniformLocation(p,n);const $=id=>document.getElementById(id);
 let flow=0,swirl=0,inf=false,infM=0,lvl=0,low=0,high=0,mouse=[-1e4,-1e4];const rip=[[0,0,-9],[0,0,-9],[0,0,-9],[0,0,-9]];let ri=0;
-const params=new URLSearchParams(location.search);if(params.get('inf')==='1'){inf=true;infM=1;$('inf').classList.add('on')}
+const params=new URLSearchParams(location.search);
 $('inf').onclick=()=>{inf=!inf;$('inf').classList.toggle('on',inf)};
 c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();mouse=[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]});
 c.addEventListener('mouseleave',()=>mouse=[-1e4,-1e4]);
 c.addEventListener('pointerdown',e=>{const r=c.getBoundingClientRect();rip[ri++%4]=[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height,performance.now()]});
+const BH={on:false,t:100,h0:0,d0:0,f0:0,hole:0,disk:0,spread:0,pull:0,flash:0,burst:-1,freeze:0};
+const sm=(a,b,x)=>{const u=Math.min(1,Math.max(0,(x-a)/(b-a)));return u*u*(3-2*u)};const ga=(x,c,w)=>Math.exp(-((x-c)/w)**2);
+const eob=x=>{const c=1.9,y=x-1;return 1+(c+1)*y*y*y+c*y*y};
+function bhAdvance(fr,dt){if(fr!==BH.on){BH.on=fr;BH.t=0;BH.h0=BH.hole;BH.d0=BH.disk;BH.f0=BH.freeze}BH.t+=dt;const t=BH.t;
+ if(BH.on){BH.pull=sm(0,.22,t)*(1-sm(.28,.7,t));const op=t<.3?0:eob(Math.min(1,(t-.3)/.55));BH.hole=Math.max(BH.h0*(1-sm(0,.3,t)),op);
+  BH.flash=BH.h0<.5?ga(t,.32,.07):0;BH.disk=Math.max(BH.d0,sm(.3,1.8,t));BH.spread=0;BH.burst=-1;BH.freeze=Math.max(BH.f0,sm(0,1,t))}
+ else{const s=Math.min(1,t/.4);BH.hole=BH.h0*(1-s*s*s);BH.flash=.8*BH.h0*ga(t,.4,.06);BH.burst=BH.h0>.2?t-.4:-1;BH.disk=BH.d0*(1-sm(.2,1.4,t));
+  BH.spread=BH.d0*sm(.1,1.4,t);BH.pull=0;BH.freeze=BH.f0*(1-sm(0,1,t))}}
 const t0=performance.now();let last=t0,pulse=0;
 function frame(now){const dt=Math.min(.1,(now-last)/1000);last=now;
  const dpr=Math.min(2,devicePixelRatio||1);const w=c.clientWidth*dpr|0,h=c.clientHeight*dpr|0;if(c.width!==w||c.height!==h){c.width=w;c.height=h}
  gl.viewport(0,0,w,h);
  if(Math.random()<dt*1.2)pulse=1;pulse*=Math.exp(-dt*1.4);
  const L=+$('lvl').value;const tl=L*(0.55+0.45*pulse);lvl+=(tl-lvl)*Math.min(1,dt*6);low+=(L*(0.4+0.6*pulse)-low)*Math.min(1,dt*5);high+=(L*0.8*pulse*pulse-high)*Math.min(1,dt*8);
- infM+=((inf?1:0)-infM)*Math.min(1,dt*1.6);
+ bhAdvance(inf,dt);infM=BH.freeze;
  const t=(now-t0)/1000;
  gl.uniform2f(U('uRes'),w,h);gl.uniform1f(U('uTime'),t);gl.uniform1f(U('uLevel'),lvl);gl.uniform1f(U('uLow'),low);gl.uniform1f(U('uHigh'),high);
  gl.uniform1f(U('uInput'),pulse*L);gl.uniform1f(U('uSize'),+$('size').value);gl.uniform1f(U('uDecay'),+$('decay').value);gl.uniform1f(U('uTone'),+$('tone').value);
  flow=(flow+(0.07+(0.018-0.07)*(+$('decay').value))*(1-0.6*infM)*dt)%1000;swirl=(swirl+0.12*infM*dt)%(2*Math.PI);gl.uniform1f(U('uFlow'),flow);gl.uniform1f(U('uSwirl'),swirl);
+ ['Hole','Disk','Spread','Pull','Flash','Burst'].forEach(k=>gl.uniform1f(U('u'+k),BH[k.toLowerCase()]));
  gl.uniform1f(U('uShimmer'),+$('shimmer').value);gl.uniform1f(U('uDuck'),0);gl.uniform1f(U('uInf'),infM);
  gl.uniform2f(U('uMouse'),mouse[0]*w,(1-mouse[1])*h);
  rip.forEach((r,i)=>gl.uniform3f(U('uRipple'+i),r[0]*w,(1-r[1])*h,r[2]<0?-1:(now-r[2])/1000));

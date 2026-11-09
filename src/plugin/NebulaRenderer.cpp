@@ -79,6 +79,12 @@ void NebulaRenderer::renderOpenGL()
     set1 ("uInf", visuals.infinite.load());
     set1 ("uFlow", visuals.flow.load());
     set1 ("uSwirl", visuals.swirl.load());
+    set1 ("uHole", visuals.hole.load());
+    set1 ("uDisk", visuals.disk.load());
+    set1 ("uSpread", visuals.spread.load());
+    set1 ("uPull", visuals.pull.load());
+    set1 ("uFlash", visuals.flash.load());
+    set1 ("uBurst", visuals.burst.load());
     // GL has y up.
     shader->setUniform ("uMouse", visuals.mouseX.load() * w, (1.0f - visuals.mouseY.load()) * h);
 

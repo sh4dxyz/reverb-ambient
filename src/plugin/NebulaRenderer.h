@@ -16,6 +16,7 @@ public:
         std::atomic<float> size { 0.5f }, decay { 0.5f }, tone { 0.3f }, shimmer { 0 }, duck { 0 }, infinite { 0 };
         std::atomic<float> mouseX { -1000 }, mouseY { -1000 }; // normalised 0..1, y down
         std::atomic<float> flow { 0 }, swirl { 0 }; // integrated animation phases
+        std::atomic<float> hole { 0 }, disk { 0 }, spread { 0 }, pull { 0 }, flash { 0 }, burst { -1 }; // black hole life cycle
     };
 
     explicit NebulaRenderer (juce::OpenGLContext& c) : context (c) {}

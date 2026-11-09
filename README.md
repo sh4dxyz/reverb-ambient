@@ -25,13 +25,13 @@ Le build macOS n'est signé qu'en ad hoc : si macOS bloque le plugin, lance
 
 | Potard | Effet |
 |---|---|
-| **Taille** | Longueur des 16 lignes de retard (de la crypte à la cathédrale). La queue en cours garde sa taille et les nouveaux sons prennent la nouvelle : tourner le potard ne fait jamais glisser le pitch. |
-| **Durée** | Temps de décroissance (RT60) de 1 à 60 s. |
-| **Sombre / Clair** | Vitesse à laquelle les aigus meurent dans la queue. En sombre, la queue s'assombrit très vite. |
-| **Shimmer** | Halo transposé réinjecté dans la boucle. 7 crans : octave, quinte, quarte vers le bas, Off, quarte, quinte, octave vers le haut. |
-| **Ducking** | Baisse la reverb pendant que tu joues ; elle remonte dans les silences. |
-| **Dry / Wet** | Mélange à puissance constante. |
-| **INFINI** | Gel total : gain de boucle à 1, plus d'absorption, modulation quasi arrêtée et shimmer suspendu, donc la nappe garde le timbre de ce qui jouait. Les nouveaux sons passent en direct sans s'y ajouter. Limiteur doux en sécurité. |
+| **SIZE** | Taille de l'espace (longueur des 16 lignes de retard), de la crypte à la cathédrale. La queue en cours garde sa taille, les nouveaux sons prennent la nouvelle : tourner le potard ne fait jamais glisser le pitch. |
+| **DECAY** | Temps de décroissance (RT60), de 1 à 60 s. |
+| **DAMPING** | Absorption des aigus : plus c'est haut, plus la queue s'assombrit vite. |
+| **SHIMMER** | Halo transposé réinjecté dans la boucle. 7 crans : −12, −7, −5, Off, +5, +7, +12 demi-tons. |
+| **DUCKING** | Baisse la reverb pendant que tu joues ; elle remonte dans les silences. |
+| **MIX** | Mélange dry/wet à puissance constante. |
+| **FREEZE** | Gel total : gain de boucle à 1, plus d'absorption, modulation quasi arrêtée et shimmer suspendu, donc la nappe garde le timbre de ce qui jouait. Les nouveaux sons passent en direct sans s'y ajouter. Limiteur doux en sécurité. |
 
 Un coupe-bas fixe (100 Hz en entrée, 70 Hz en sortie, 12 dB/oct) garde la queue propre.
 
@@ -43,7 +43,7 @@ d'Ableton pour créer un WAV 24 bits.
 
 * Mode normal : de l'attaque du son jusqu'à ce que la queue devienne silencieuse
   (−70 dBFS), limité à 60 s (fondu de sortie si la limite est atteinte).
-* Mode INFINI : les 30 dernières secondes au maximum, avec un fondu de sortie de 4 s.
+* Mode FREEZE : les 30 dernières secondes au maximum, avec un fondu de sortie de 4 s.
 
 Les fichiers sont gardés dans `Documents/D33P/Exports` (double-clic sur la zone pour
 ouvrir le dossier). Ils ne sont jamais supprimés automatiquement, ton projet ne perd donc
@@ -53,9 +53,10 @@ pas ses samples.
 
 Fenêtre de 720 × 440 par défaut (redimensionnable de 540 à 1440 px de large).
 Fond OpenGL temps réel : une nébuleuse qui réagit au son (densité selon le niveau, cœur qui
-pulse avec les graves, étoiles qui scintillent avec les aigus, couleurs selon Sombre/Clair,
-étincelles qui montent ou tombent selon le shimmer). **INFINI** effondre la nébuleuse en trou
-noir (lentille gravitationnelle, disque d'accrétion, anneau de photons). Clique dans le vide
+pulse avec les graves, étoiles qui scintillent avec les aigus, couleurs selon le Damping,
+étincelles qui montent ou tombent selon le shimmer). **FREEZE** effondre la nébuleuse en trou
+noir : le gaz est aspiré en spirale, éclair d'effondrement, l'horizon s'ouvre, puis le disque
+d'accrétion s'allume ; à la sortie, le trou s'évapore dans un éclair et une onde de choc. Clique dans le vide
 pour lancer des ondes de choc ; le curseur attire légèrement le gaz. La fenêtre se
 redimensionne (proportions fixes) pour les captures d'écran.
 
